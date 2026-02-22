@@ -5,6 +5,7 @@ import 'game/config/character_data.dart';
 import 'game/mbti_game.dart';
 import 'screens/character_select.dart';
 import 'screens/result_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/ad_manager.dart';
 import 'services/save_manager.dart';
 import 'services/unlock_manager.dart';
@@ -65,7 +66,7 @@ class MbtiHeroApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0A1A),
       ),
-      home: HomeScreen(
+      home: SplashScreen(
         unlockManager: unlockManager,
         adManager: adManager,
         saveManager: saveManager,

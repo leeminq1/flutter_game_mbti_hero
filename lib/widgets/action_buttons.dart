@@ -31,8 +31,8 @@ class _ActionOverlayState extends State<ActionOverlay> {
         // === 우측: 공격/필살기 버튼 ===
         Positioned(right: 40, bottom: 150, child: _buildActionButtons()),
 
-        // === 우측 상단: 일시정지 버튼 ===
-        Positioned(right: 16, top: 16, child: _buildPauseButton()),
+        // === 우측 중단: 일시정지 버튼 (Wave 정보 아래) ===
+        Positioned(right: 16, top: 70, child: _buildPauseButton()),
       ],
     );
   }
