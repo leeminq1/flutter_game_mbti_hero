@@ -410,7 +410,7 @@ class BaseEnemy extends PositionComponent
       final bullet = Projectile(
         position: position.clone(),
         direction: direction,
-        speed: 250, // 탄속 약간 증가
+        speed: 175, // 기존 250에서 30% 감소
         damage: damage,
         color: const Color(0xFFFF1744),
         radius: 4,

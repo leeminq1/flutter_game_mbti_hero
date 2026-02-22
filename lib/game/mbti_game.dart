@@ -16,8 +16,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   // 게임 상태 (Flutter UI 연동)
   final GameState gameState = GameState();
 
-  // 맵 크기
-  final Vector2 mapSize = Vector2(1600, 1200);
+  // 맵 크기 (512 단위 타일에 맞추어 4x4 배열)
+  final Vector2 mapSize = Vector2(2048, 2048);
 
   // 플레이어
   late Player player;

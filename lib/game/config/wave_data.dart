@@ -49,7 +49,7 @@ class WaveData {
         enemies[EnemyType.finalBoss] = 1;
         final mobs = totalEnemies - 1;
         enemies[EnemyType.bat] = (mobs * 0.4).toInt();
-        enemies[EnemyType.sniper] = (mobs * 0.3).toInt();
+        enemies[EnemyType.sniper] = (mobs * 0.3 * 0.6).toInt(); // 스나이퍼 수 40% 감소
         enemies[EnemyType.charger] = (mobs * 0.3).toInt();
       } else if (isBossWave) {
         // 보스 웨이브
@@ -67,7 +67,9 @@ class WaveData {
         int slimeCount = (totalEnemies * 0.4).toInt();
         int batCount = (totalEnemies * 0.3).toInt();
         int chargerCount = i >= 3 ? (totalEnemies * 0.2).toInt() : 0;
-        int sniperCount = totalEnemies - (slimeCount + batCount + chargerCount);
+        int sniperCount = ((totalEnemies - (slimeCount + batCount + chargerCount)) * 0.6).toInt(); // 스나이퍼 수 40% 감소
+
+        enemies[EnemyType.slime] = slimeCount + ((totalEnemies - (slimeCount + batCount + chargerCount)) * 0.4).toInt(); // 스나이퍼 감소분을 슬라임으로 대체
 
         enemies[EnemyType.slime] = slimeCount;
         enemies[EnemyType.bat] = batCount;
