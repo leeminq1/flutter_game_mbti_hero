@@ -493,22 +493,22 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
   /// ESTJ 필살기: "철벽 방어" - 전신 보호막 🛡️ + 범위 데미지
   void _ultWave(Player p) {
-    _dealDamageInRadius(p.position, 150, p.attackPower * 3);
+    _dealDamageInRadius(p.position, 225, p.attackPower * 4.5);
     final bigWave = CircleComponent(
-      radius: 150,
+      radius: 225,
       position: p.position.clone(),
       anchor: Anchor.center,
       paint: Paint()..color = p.characterData.color.withValues(alpha: 0.4),
     );
     bigWave.add(
       TimerComponent(
-        period: 0.5,
+        period: 0.75,
         removeOnFinish: true,
         onTick: () => bigWave.removeFromParent(),
       ),
     );
     world.add(bigWave);
-    // 3초 무적 + 전신 보호막 🛡️ 이펙트
+    // 4.5초 무적 + 전신 보호막 🛡️ 이펙트
     p.isInvincible = true;
     final shieldVisual = TextComponent(
       text: '🛡️',
@@ -520,7 +520,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
     add(
       TimerComponent(
-        period: 3.0,
+        period: 4.5,
         removeOnFinish: true,
         onTick: () {
           p.isInvincible = false;
@@ -532,8 +532,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
   /// ENTP 필살기: "브레인스토밍 폭발" - 광역 폭발 💥
   void _ultHoming(Player p) {
-    for (int i = 0; i < 8; i++) {
-      final angle = i * pi / 4;
+    for (int i = 0; i < 12; i++) {
+      final angle = i * pi / 6;
       final dir = Vector2(cos(angle), sin(angle));
       final offset = dir * 30.0;
       world.add(
@@ -541,9 +541,9 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
           position: p.position.clone()..add(offset),
           direction: dir,
           speed: 300,
-          damage: p.attackPower * 2,
+          damage: p.attackPower * 3,
           color: p.characterData.color,
-          radius: 15,
+          radius: 22.5,
           emoji: '💥',
           isSplash: true,
         ),
@@ -553,11 +553,11 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
   /// INFP 필살기: "힐링 서클" - 장판형 회복 🌿
   void _ultSummon(Player p) {
-    p.heal(p.maxHp * 0.4);
+    p.heal(p.maxHp * 0.6);
     p.isInvincible = true;
 
     final circle = CircleComponent(
-      radius: 80,
+      radius: 120,
       position: p.position.clone(),
       anchor: Anchor.center,
       paint: Paint()..color = const Color(0xFF4CAF50).withValues(alpha: 0.3),
@@ -565,7 +565,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     circle.add(
       TextComponent(
         text: '🌿',
-        position: Vector2(80, 80),
+        position: Vector2(120, 120),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 40)),
       ),
@@ -574,7 +574,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
     add(
       TimerComponent(
-        period: 3.0,
+        period: 4.5,
         removeOnFinish: true,
         onTick: () {
           p.isInvincible = false;
@@ -594,12 +594,12 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         position: p.position.clone(),
         direction: dir,
         speed: 500,
-        damage: p.attackPower * 5,
+        damage: p.attackPower * 7.5,
         color: p.characterData.color,
-        radius: 20,
+        radius: 30,
         emoji: '⚙️',
         isSplash: true,
-        splashRadius: 60,
+        splashRadius: 90,
       ),
     );
   }
@@ -607,12 +607,12 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   /// ENFJ 필살기: "사기 진작 오라" - 황금빛 왕관 ✨
   void _ultAura(Player p) {
     final originalAtk = p.attackPower;
-    p.attackPower *= 2;
+    p.attackPower *= 3; // 2 -> 3 (1.5x effectiveness)
 
-    _dealDamageInRadius(p.position, 120, p.attackPower * 1.5);
+    _dealDamageInRadius(p.position, 180, p.attackPower * 1.5);
 
     final auraEffect = CircleComponent(
-      radius: 120,
+      radius: 180,
       position: p.position.clone(),
       anchor: Anchor.center,
       paint: Paint()..color = const Color(0xFFFFD700).withValues(alpha: 0.25),
@@ -620,14 +620,14 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     auraEffect.add(
       TextComponent(
         text: '✨',
-        position: Vector2(120, 40),
+        position: Vector2(180, 60),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 50)),
       ),
     );
     auraEffect.add(
       TimerComponent(
-        period: 5.0,
+        period: 7.5,
         removeOnFinish: true,
         onTick: () {
           auraEffect.removeFromParent();
@@ -642,7 +642,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   void _ultBlink(Player p) {
     final allEnemies = world.children.whereType<BaseEnemy>().toList();
     for (final enemy in allEnemies) {
-      enemy.takeDamage(p.attackPower * 2);
+      enemy.takeDamage(p.attackPower * 3);
     }
     // 전체 맵 플래시 이펙트
     final flash = RectangleComponent(
@@ -661,7 +661,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     flash.add(
       TimerComponent(
-        period: 0.5,
+        period: 0.75,
         removeOnFinish: true,
         onTick: () => flash.removeFromParent(),
       ),
@@ -671,28 +671,28 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
   /// ESFP 필살기: "스포트라이트 집중 조명" - 🔦 연사
   void _ultRapid(Player p) {
-    // 즉시 16방향 발사
-    for (int i = 0; i < 16; i++) {
-      final angle = i * pi / 8;
+    // 즉시 24방향 발사
+    for (int i = 0; i < 24; i++) {
+      final angle = i * pi / 12;
       world.add(
         Projectile(
           position: p.position.clone(),
           direction: Vector2(cos(angle), sin(angle)),
           speed: 250,
-          damage: p.attackPower * 1.5,
+          damage: p.attackPower * 2.25,
           color: p.characterData.color,
-          radius: 12,
+          radius: 18,
           emoji: '🔦',
         ),
       );
     }
-    // 3초간 공격속도 증가
-    p.reduceAttackInterval(0.3);
+    // 4.5초간 공격속도 대폭 증가
+    p.reduceAttackInterval(0.45);
     add(
       TimerComponent(
-        period: 3.0,
+        period: 4.5,
         removeOnFinish: true,
-        onTick: () => p.reduceAttackInterval(-0.3),
+        onTick: () => p.reduceAttackInterval(-0.45),
       ),
     );
   }
@@ -700,10 +700,10 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   /// ISFJ 필살기: "안전 제일 보호막" - 반투명 장벽 🟢
   void _ultShield(Player p) {
     p.isInvincible = true;
-    p.heal(p.maxHp * 0.3);
+    p.heal(p.maxHp * 0.45);
 
     final shieldEffect = CircleComponent(
-      radius: 40,
+      radius: 60,
       position: p.position.clone(),
       anchor: Anchor.center,
       paint: Paint()..color = const Color(0xFF4CAF50).withValues(alpha: 0.35),
@@ -711,7 +711,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     shieldEffect.add(
       TextComponent(
         text: '🟢',
-        position: Vector2(40, -10),
+        position: Vector2(60, -15),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 24)),
       ),
@@ -719,7 +719,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
     shieldEffect.add(
       TimerComponent(
-        period: 5.0,
+        period: 7.5,
         removeOnFinish: true,
         onTick: () {
           shieldEffect.removeFromParent();

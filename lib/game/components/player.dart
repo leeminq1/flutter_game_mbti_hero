@@ -31,8 +31,8 @@ class Player extends SpriteAnimationComponent
   late double _nextQuoteTime;
   final Random _random = Random();
 
-  // 멀티샷 개수 (최소 1, 최대 10)
-  int multiShotCount = 1;
+  // 멀티샷 개수 (최초 3개 발사)
+  int multiShotCount = 3;
 
   Player({required this.characterData})
     : super(

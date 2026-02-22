@@ -394,13 +394,14 @@ class BaseEnemy extends PositionComponent
     }
   }
 
-  /// 저격수 원거리 공격 - 투사체 발사 (5연발 버스트)
+  /// 저격수 원거리 공격 - 투사체 발사 (웨이브 10 미만: 2연발, 이상: 5연발)
   void _shootAtPlayer(Player player) {
     if (player.isRemoved) return;
 
     int shotCount = 0;
-    const int maxShots = 5;
-    const double burstInterval = 0.15; // 0.15초 간격으로 5발 연속 발사
+    final int currentWave = game.gameState.currentWave;
+    final int maxShots = currentWave >= 10 ? 5 : 2;
+    const double burstInterval = 0.15; // 0.15초 간격 연속 발사
 
     void fireBullet() {
       if (isRemoved || player.isRemoved) return;

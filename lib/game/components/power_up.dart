@@ -150,8 +150,9 @@ class PowerUp extends PositionComponent
         player.heal(player.maxHp * 0.25);
         break;
       case PowerUpType.cooldownReduce:
-        // 필살기 쿨타임 3초 감소
-        game.gameState.reduceUltCooldown(3.0);
+        // 필살기 쿨타임 2~3초 랜덤 감소
+        final reduceAmount = 2.0 + Random().nextDouble() * 1.0;
+        game.gameState.reduceUltCooldown(reduceAmount);
         break;
       case PowerUpType.multiShot:
         player.increaseMultiShot();
