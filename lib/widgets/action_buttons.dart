@@ -12,7 +12,30 @@ class ActionOverlay extends StatefulWidget {
   State<ActionOverlay> createState() => _ActionOverlayState();
 }
 
-class _ActionOverlayState extends State<ActionOverlay> {
+class _ActionOverlayState extends State<ActionOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
   // 조이스틱 상태
   // 조이스틱 위치
   static const double _joystickRadius = 50;
@@ -119,7 +142,6 @@ class _ActionOverlayState extends State<ActionOverlay> {
     final isReady = gs.isAssistReady;
     final cooldownRatio = gs.assistCooldownRatio;
     final companionColor = gs.companionData.color;
-    final companionMbti = gs.companionData.mbti;
 
     return GestureDetector(
       onTap: () {
@@ -127,63 +149,71 @@ class _ActionOverlayState extends State<ActionOverlay> {
           widget.game.performAssist();
         }
       },
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isReady
-              ? companionColor.withValues(alpha: 0.7)
-              : Colors.grey.shade800,
-          border: Border.all(
-            color: isReady ? companionColor : Colors.grey.shade600,
-            width: 2,
-          ),
-          boxShadow: isReady
-              ? [
-                  BoxShadow(
-                    color: companionColor.withValues(alpha: 0.5),
-                    blurRadius: 10,
-                  ),
-                ]
-              : [],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (!isReady)
-              SizedBox(
-                width: 48,
-                height: 48,
-                child: CircularProgressIndicator(
-                  value: 1 - cooldownRatio,
-                  color: companionColor.withValues(alpha: 0.5),
-                  backgroundColor: Colors.transparent,
-                  strokeWidth: 2,
-                ),
-              ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  companionMbti.substring(0, 2),
-                  style: TextStyle(
-                    color: isReady ? Colors.white : Colors.white38,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10,
-                  ),
-                ),
-                Text(
-                  'ASSIST',
-                  style: TextStyle(
-                    color: isReady ? Colors.white : Colors.white38,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 7,
-                  ),
-                ),
-              ],
+      child: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: isReady ? _pulseAnimation.value : 1.0,
+            child: child,
+          );
+        },
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isReady
+                ? companionColor.withValues(alpha: 0.7)
+                : Colors.grey.shade800,
+            border: Border.all(
+              color: isReady ? companionColor : Colors.grey.shade600,
+              width: 2,
             ),
-          ],
+            boxShadow: isReady
+                ? [
+                    BoxShadow(
+                      color: companionColor.withValues(alpha: 0.5),
+                      blurRadius: 10,
+                    ),
+                  ]
+                : [],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (!isReady)
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: CircularProgressIndicator(
+                    value: 1 - cooldownRatio,
+                    color: companionColor.withValues(alpha: 0.5),
+                    backgroundColor: Colors.transparent,
+                    strokeWidth: 2,
+                  ),
+                ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    gs.companionData.iconEmoji,
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: isReady ? Colors.white : Colors.white24,
+                    ),
+                  ),
+                  Text(
+                    'ASSIST',
+                    style: TextStyle(
+                      color: isReady ? Colors.white : Colors.white38,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 8,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -200,43 +230,71 @@ class _ActionOverlayState extends State<ActionOverlay> {
           widget.game.player.useUltimate();
         }
       },
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isReady ? color.withValues(alpha: 0.8) : Colors.grey.shade800,
-          border: Border.all(
-            color: isReady ? color : Colors.grey.shade600,
-            width: 3,
-          ),
-          boxShadow: isReady
-              ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 12)]
-              : [],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (!isReady)
-              SizedBox(
-                width: 56,
-                height: 56,
-                child: CircularProgressIndicator(
-                  value: 1 - cooldownRatio,
-                  color: color.withValues(alpha: 0.5),
-                  backgroundColor: Colors.transparent,
-                  strokeWidth: 3,
-                ),
-              ),
-            Text(
-              'ULT',
-              style: TextStyle(
-                color: isReady ? Colors.white : Colors.white38,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
+      child: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: isReady ? _pulseAnimation.value : 1.0,
+            child: child,
+          );
+        },
+        child: Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isReady
+                ? color.withValues(alpha: 0.8)
+                : Colors.grey.shade800,
+            border: Border.all(
+              color: isReady ? color : Colors.grey.shade600,
+              width: 3,
             ),
-          ],
+            boxShadow: isReady
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.6),
+                      blurRadius: 12,
+                    ),
+                  ]
+                : [],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (!isReady)
+                SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: CircularProgressIndicator(
+                    value: 1 - cooldownRatio,
+                    color: color.withValues(alpha: 0.5),
+                    backgroundColor: Colors.transparent,
+                    strokeWidth: 3,
+                  ),
+                ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.game.gameState.characterData.iconEmoji,
+                    style: TextStyle(
+                      fontSize: 24,
+                      color: isReady ? Colors.white : Colors.white24,
+                    ),
+                  ),
+                  Text(
+                    'ULT',
+                    style: TextStyle(
+                      color: isReady ? Colors.white : Colors.white38,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

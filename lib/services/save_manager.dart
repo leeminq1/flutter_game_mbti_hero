@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../game/config/character_data.dart';
 
 /// 게임 진행 저장/불러오기 관리
@@ -22,6 +23,10 @@ class SaveManager {
   static const String _keyAtkLevel = 'global_atk_level';
   static const String _keySpdLevel = 'global_spd_level';
   static const String _keyUnlockedChars = 'global_unlocked_chars';
+
+  // 리더보드 키
+  static const String _keyLeaderboard = 'leaderboard_entries';
+  static const int _maxLeaderboardEntries = 50;
 
   late SharedPreferences _prefs;
 
@@ -149,6 +154,34 @@ class SaveManager {
     final charData = MbtiCharacters.getByType(data.character);
     return '${charData.mbti} ${charData.name} | Wave ${data.wave} | HP ${data.hp.toInt()}';
   }
+
+  // ══════════════════════════════════════════
+  // ═══ 리더보드 ═══
+  // ══════════════════════════════════════════
+
+  /// 리더보드에 기록 추가
+  Future<void> addLeaderboardEntry(LeaderboardEntry entry) async {
+    final entries = loadLeaderboard();
+    entries.add(entry);
+    entries.sort((a, b) {
+      final waveComp = b.wave.compareTo(a.wave);
+      if (waveComp != 0) return waveComp;
+      return b.score.compareTo(a.score);
+    });
+    if (entries.length > _maxLeaderboardEntries) {
+      entries.removeRange(_maxLeaderboardEntries, entries.length);
+    }
+    final jsonList = entries.map((e) => jsonEncode(e.toJson())).toList();
+    await _prefs.setStringList(_keyLeaderboard, jsonList);
+  }
+
+  /// 리더보드 데이터 불러오기
+  List<LeaderboardEntry> loadLeaderboard() {
+    final jsonList = _prefs.getStringList(_keyLeaderboard) ?? [];
+    return jsonList
+        .map((s) => LeaderboardEntry.fromJson(jsonDecode(s)))
+        .toList();
+  }
 }
 
 /// 저장 데이터 구조
@@ -195,4 +228,49 @@ class GlobalSaveData {
     required this.speedLevel,
     required this.unlockedCharacters,
   });
+}
+
+/// 리더보드 기록 구조
+class LeaderboardEntry {
+  final String playerName;
+  final CharacterType character;
+  final CharacterType companion;
+  final int wave;
+  final int score;
+  final String dateTime;
+
+  const LeaderboardEntry({
+    required this.playerName,
+    required this.character,
+    required this.companion,
+    required this.wave,
+    required this.score,
+    required this.dateTime,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': playerName,
+    'char': character.name,
+    'comp': companion.name,
+    'wave': wave,
+    'score': score,
+    'date': dateTime,
+  };
+
+  factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
+    return LeaderboardEntry(
+      playerName: json['name'] ?? 'Unknown',
+      character: CharacterType.values.firstWhere(
+        (t) => t.name == json['char'],
+        orElse: () => CharacterType.estj,
+      ),
+      companion: CharacterType.values.firstWhere(
+        (t) => t.name == json['comp'],
+        orElse: () => CharacterType.isfj,
+      ),
+      wave: json['wave'] ?? 1,
+      score: json['score'] ?? 0,
+      dateTime: json['date'] ?? '',
+    );
+  }
 }

@@ -34,11 +34,26 @@ class Player extends SpriteAnimationComponent
   // 멀티샷 개수 (최초 3개 발사)
   int multiShotCount = 3;
 
-  Player({required this.characterData})
-    : super(
-        size: Vector2(64, 64), // 화면에 그려질 크기
-        anchor: Anchor.center,
-      );
+  // 복원용 임시 저장 변수
+  final double? restoredHp;
+  final double? restoredMaxHp;
+  final double? restoredSpeed;
+  final double? restoredAttack;
+  final int? restoredMultiShot;
+  final double? restoredAttackInterval;
+
+  Player({
+    required this.characterData,
+    this.restoredHp,
+    this.restoredMaxHp,
+    this.restoredSpeed,
+    this.restoredAttack,
+    this.restoredMultiShot,
+    this.restoredAttackInterval,
+  }) : super(
+         size: Vector2(64, 64), // 화면에 그려질 크기
+         anchor: Anchor.center,
+       );
 
   @override
   Future<void> onLoad() async {
@@ -68,16 +83,20 @@ class Player extends SpriteAnimationComponent
     }
 
     // 메타 프로그레션 (글로벌 업그레이드) 적용 - 레벨당 약 1.7% 증가
-    final hpMultiplier = 1.0 + (game.gameState.hpLevel * 0.017);
-    final atkMultiplier = 1.0 + (game.gameState.attackLevel * 0.017);
-    final spdMultiplier = 1.0 + (game.gameState.speedLevel * 0.017);
+    final hpMultiplier = 1.0 + (game.gameState.hpLevel * 0.014);
+    final atkMultiplier = 1.0 + (game.gameState.attackLevel * 0.014);
+    final spdMultiplier = 1.0 + (game.gameState.speedLevel * 0.014);
 
     // 능력치 초기화
-    maxHp = characterData.maxHp * hpMultiplier;
-    currentHp = maxHp;
-    speed = characterData.speed * spdMultiplier;
-    attackPower = characterData.attack * atkMultiplier;
-    _attackInterval = characterData.baseAttackSpeed;
+    // 능력치 초기화 (복원 데이터가 있으면 우선 사용)
+    maxHp = restoredMaxHp ?? (characterData.maxHp * hpMultiplier);
+    currentHp = restoredHp ?? maxHp;
+    speed = restoredSpeed ?? (characterData.speed * spdMultiplier);
+    attackPower = restoredAttack ?? (characterData.attack * atkMultiplier);
+    _attackInterval = restoredAttackInterval ?? characterData.baseAttackSpeed;
+    if (restoredMultiShot != null) {
+      multiShotCount = restoredMultiShot!;
+    }
 
     // 히트박스 추가 (캐릭터 크기보다 약간 작게)
     add(
@@ -95,6 +114,8 @@ class Player extends SpriteAnimationComponent
 
   // 히트박스 반경 상수화
   static const double playerHitboxRadius = 18.0;
+
+  double get attackInterval => _attackInterval;
 
   @override
   void update(double dt) {
@@ -199,6 +220,6 @@ class Player extends SpriteAnimationComponent
 
   /// 멀티샷 증가 (+2, 최대 10발)
   void increaseMultiShot() {
-    multiShotCount = min(10, multiShotCount + 2);
+    multiShotCount = min(10, multiShotCount + 1);
   }
 }

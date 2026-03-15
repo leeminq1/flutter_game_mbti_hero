@@ -69,6 +69,18 @@ class BaseEnemy extends PositionComponent
         case EnemyType.tanker:
           imageFile = 'enemies/boss_2_proc.png'; // 결재 도장 팀장
           break;
+        case EnemyType.bug:
+          imageFile = 'enemies/enemy_bug.png'; // 벌레
+          break;
+        case EnemyType.stapler:
+          imageFile = 'enemies/enemy_stapler.png'; // 호치키스
+          break;
+        case EnemyType.sharp:
+          imageFile = 'enemies/enemy_sharp.png'; // 압정
+          break;
+        case EnemyType.mbtiBoss:
+          imageFile = 'enemies/enemy_0.png'; // 예비용 (실제론 MbtiBossEnemy에서 처리)
+          break;
         case EnemyType.bat:
           imageFile = 'enemies/enemy_1.png'; // 수다쟁이 동료
           break;
@@ -162,6 +174,34 @@ class BaseEnemy extends PositionComponent
         attackCooldown = 2.0;
         expValue = 8;
         break;
+      case EnemyType.bug:
+        maxHp = 15;
+        speed = 90;
+        damage = 12;
+        attackCooldown = 0.8;
+        expValue = 3;
+        break;
+      case EnemyType.stapler:
+        maxHp = 60;
+        speed = 40;
+        damage = 30;
+        attackCooldown = 2.0;
+        expValue = 7;
+        break;
+      case EnemyType.sharp:
+        maxHp = 25;
+        speed = 130;
+        damage = 20;
+        attackCooldown = 1.0;
+        expValue = 5;
+        break;
+      case EnemyType.mbtiBoss:
+        maxHp = 500;
+        speed = 50;
+        damage = 40;
+        attackCooldown = 1.0;
+        expValue = 30;
+        break;
       case EnemyType.midBoss:
         maxHp = 300;
         speed = 35;
@@ -197,6 +237,14 @@ class BaseEnemy extends PositionComponent
         return 12.0;
       case EnemyType.tanker:
         return 20.0;
+      case EnemyType.bug:
+        return 12.0;
+      case EnemyType.stapler:
+        return 18.0;
+      case EnemyType.sharp:
+        return 14.0;
+      case EnemyType.mbtiBoss:
+        return 24.0;
       case EnemyType.midBoss:
         return 30.0;
       case EnemyType.finalBoss:
@@ -252,6 +300,22 @@ class BaseEnemy extends PositionComponent
         break;
       case EnemyType.tanker:
         // 플레이어에게 무조건 직진
+        _chasePlayer(player, dt);
+        break;
+      case EnemyType.bug:
+        // 박쥐처럼 약간 지그재그 추적
+        _chaseBatStyle(player, dt);
+        break;
+      case EnemyType.stapler:
+        // 돌격병처럼 접근 후 돌격
+        _chargeAttack(player, dt, distToPlayer);
+        break;
+      case EnemyType.sharp:
+        // 호전적으로 매우 빠른 돌격
+        _chargeAttack(player, dt, distToPlayer);
+        break;
+      case EnemyType.mbtiBoss:
+        // MBTI 보스: 자체 update에서 공격 처리, 여기선 추적만
         _chasePlayer(player, dt);
         break;
       case EnemyType.midBoss:
@@ -499,7 +563,7 @@ class BaseEnemy extends PositionComponent
     _hitFlashTimer = _hitFlashDuration;
 
     // 보스인 경우 UI 체력바 업데이트
-    if (type == EnemyType.midBoss || type == EnemyType.finalBoss) {
+    if (_isBoss) {
       game.gameState.updateBossHp(currentHp / maxHp);
     }
 
@@ -518,12 +582,17 @@ class BaseEnemy extends PositionComponent
     }
   }
 
-  bool get _isBoss => type == EnemyType.midBoss || type == EnemyType.finalBoss;
+  bool get _isBoss =>
+      type == EnemyType.midBoss ||
+      type == EnemyType.finalBoss ||
+      type == EnemyType.mbtiBoss;
 
   /// 사망 처리
   void die() {
     if (_isBoss) {
       game.gameState.clearBoss();
+      // 보스 사망 시 모든 적 투사체 제거
+      _clearEnemyProjectiles();
     }
 
     // 커피콩 보상
@@ -537,6 +606,19 @@ class BaseEnemy extends PositionComponent
 
     game.onEnemyKilled(this);
     removeFromParent();
+  }
+
+  /// 보스 사망 시 모든 적 투사체 제거
+  void _clearEnemyProjectiles() {
+    final projectiles = game.world.children.whereType<Projectile>().toList();
+    for (final p in projectiles) {
+      final isEnemyProjectile = p.children.whereType<TagComponent>().any(
+        (t) => t.tag == 'enemy_projectile',
+      );
+      if (isEnemyProjectile) {
+        p.removeFromParent();
+      }
+    }
   }
 
   /// 접촉 시 플레이어에게 데미지

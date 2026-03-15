@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../game/config/character_data.dart';
 import '../game/config/mbti_compatibility.dart';
 import '../services/save_manager.dart';
+import 'leaderboard_screen.dart';
 
 /// 캐릭터 선택 화면 (캐릭터 → 동료 선택 2단계)
 class CharacterSelectScreen extends StatefulWidget {
@@ -361,19 +362,68 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
     return Column(
       children: [
         const SizedBox(height: 20),
-        // 타이틀
-        ShaderMask(
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFFFFD700), Color(0xFFFF6B35)],
-          ).createShader(bounds),
-          child: const Text(
-            'MBTI 히어로',
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: 4,
-            ),
+        // 타이틀 + 순위표 버튼
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(),
+              ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFFFF6B35)],
+                ).createShader(bounds),
+                child: const Text(
+                  'MBTI 히어로',
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 4,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // 순위표 버튼
+              GestureDetector(
+                onTap: () {
+                  if (widget.saveManager != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            LeaderboardScreen(saveManager: widget.saveManager!),
+                      ),
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.amber.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.emoji_events, color: Colors.amber, size: 20),
+                      SizedBox(width: 4),
+                      Text(
+                        '순위',
+                        style: TextStyle(
+                          color: Colors.amber,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
 
@@ -757,19 +807,19 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
                           children: [
                             _buildStatBar(
                               'HP',
-                              character.maxHp / 200,
+                              character.maxHp / 120, // max 120 (110 = 91%)
                               isUnlocked,
                               character.color,
                             ),
                             _buildStatBar(
                               'ATK',
-                              character.attack / 30,
+                              character.attack / 10, // max 10 (9 = 90%)
                               isUnlocked,
                               character.color,
                             ),
                             _buildStatBar(
                               'SPD',
-                              character.speed / 160,
+                              character.speed / 110, // max 110 (100 = 90%)
                               isUnlocked,
                               character.color,
                             ),

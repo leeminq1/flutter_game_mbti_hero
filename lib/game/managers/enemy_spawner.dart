@@ -2,7 +2,9 @@ import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../components/enemies/base_enemy.dart';
+import '../components/enemies/mbti_boss_enemy.dart';
 import '../config/wave_data.dart';
+import '../config/character_data.dart';
 import '../mbti_game.dart';
 
 /// 웨이브 기반 적 스폰 매니저
@@ -49,7 +51,9 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
     _spawnQueue.clear();
     _totalEnemiesInWave = 0;
     for (final entry in _currentWave!.enemies.entries) {
-      if (entry.key == EnemyType.midBoss || entry.key == EnemyType.finalBoss) {
+      if (entry.key == EnemyType.midBoss ||
+          entry.key == EnemyType.finalBoss ||
+          entry.key == EnemyType.mbtiBoss) {
         // 보스는 큐에 넣지 않음 — 나중에 remaining <= 10일 때 스폰
         _totalEnemiesInWave += entry.value;
         continue;
@@ -65,6 +69,9 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
     // GameState 업데이트
     game.gameState.setWave(_currentWaveIndex + 1);
     game.gameState.setEnemiesRemaining(_totalEnemiesInWave);
+    debugPrint(
+      '[WAVE ${_currentWaveIndex + 1}] Started: total=$_totalEnemiesInWave, queue=${_spawnQueue.length}, isMbti=${(_currentWaveIndex + 1) % 5 == 0}, bosses=${_currentWave!.enemies[EnemyType.mbtiBoss] ?? 0}',
+    );
   }
 
   /// 현재 웨이브의 배치 크기 (조금 덜 몰려나오도록 5부터 시작, 완만한 증가)
@@ -96,9 +103,18 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
 
     if (_currentWave == null) return;
 
-    // 보스 웨이브에서 적이 10 이하가 되면 보스 스폰
+    // 보스 웨이브에서 적이 10 이하가 되면 보스 스폰 (중간보스 또는 MBTI 보스)
     final isBossWave = (_currentWaveIndex + 1) % 3 == 0;
-    if (isBossWave && !_bossSpawned && game.gameState.enemiesRemaining <= 10) {
+    final isMbtiBossWave =
+        (_currentWaveIndex + 1) % 5 == 0 && (_currentWaveIndex + 1) != 30;
+    final isFinalBossWave = (_currentWaveIndex + 1) == 30;
+
+    if ((isBossWave || isMbtiBossWave || isFinalBossWave) &&
+        !_bossSpawned &&
+        game.gameState.enemiesRemaining <= 10) {
+      debugPrint(
+        '[WAVE ${_currentWaveIndex + 1}] Boss spawn triggered! remaining=${game.gameState.enemiesRemaining}, isMbti=$isMbtiBossWave, isMid=$isBossWave',
+      );
       _spawnBoss();
     }
 
@@ -123,12 +139,67 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
   void _spawnBoss() {
     _bossSpawned = true;
     final isFinalBoss = (_currentWaveIndex + 1) == 30;
-    final bossType = isFinalBoss ? EnemyType.finalBoss : EnemyType.midBoss;
-    final bossCount = _currentWave!.enemies[bossType] ?? 1;
-    for (int i = 0; i < bossCount; i++) {
-      final spawnPos = _getSpawnPosition();
-      final boss = BaseEnemy(type: bossType, position: spawnPos);
-      game.world.add(boss);
+    final isMbtiBossWave = (_currentWaveIndex + 1) % 5 == 0 && !isFinalBoss;
+    final isMidBossWave = (_currentWaveIndex + 1) % 3 == 0;
+
+    // Spawn MBTI Boss if applicable
+    if (isMbtiBossWave || isFinalBoss) {
+      final bossCount = _currentWave!.enemies[EnemyType.mbtiBoss] ?? 0;
+      for (int i = 0; i < bossCount; i++) {
+        final spawnPos = _getSpawnPosition();
+
+        // 랜덤 MBTI 캐릭터 선택 (0~7)
+        final randomCharType = CharacterType.values[_random.nextInt(8)];
+        final characterData = MbtiCharacters.getByType(randomCharType);
+
+        final mbtiBoss = MbtiBossEnemy(
+          position: spawnPos,
+          characterData: characterData,
+          playerAttack: game.player.attackPower,
+          playerSpeed: game.player.speed,
+          playerMaxHp: game.gameState.maxHp,
+          waveNumber: _currentWaveIndex + 1,
+        );
+        game.world.add(mbtiBoss);
+        debugPrint(
+          '[BOSS] MBTI Boss spawned: ${characterData.name} (${characterData.mbti}) at $spawnPos | playerAtk=${game.player.attackPower}, bossHp=${mbtiBoss.maxHp}, bossDmg=${mbtiBoss.damage}',
+        );
+
+        // 보스 등장 경고 텍스트 표시
+        final warningText = TextComponent(
+          text: '⚠️ MBTI 보스: ${characterData.name} 등장! ⚠️',
+          position: game.player.position.clone()..y -= 100,
+          anchor: Anchor.center,
+          priority: 30,
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              shadows: [Shadow(color: Colors.black, blurRadius: 10)],
+            ),
+          ),
+        );
+        warningText.add(
+          TimerComponent(
+            period: 3.0,
+            removeOnFinish: true,
+            onTick: () => warningText.removeFromParent(),
+          ),
+        );
+        game.world.add(warningText);
+      }
+    }
+
+    // Spawn Mid or Final Boss if applicable
+    if (isMidBossWave || isFinalBoss) {
+      final bossType = isFinalBoss ? EnemyType.finalBoss : EnemyType.midBoss;
+      final bossCount = _currentWave!.enemies[bossType] ?? 0;
+      for (int i = 0; i < bossCount; i++) {
+        final spawnPos = _getSpawnPosition();
+        final boss = BaseEnemy(type: bossType, position: spawnPos);
+        game.world.add(boss);
+      }
     }
   }
 
@@ -206,9 +277,9 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
     _waveActive = false;
     game.autoSave(); // 웨이브가 끝날 때 자동 저장
 
-    // 보스 웨이브 클리어 시 (3의 배수) → 강화 선택 화면
+    // 보스 웨이브 클리어 시 (3의 배수 또는 5의 배수) → 강화 선택 화면
     final clearedWaveNumber = _currentWaveIndex + 1;
-    if (clearedWaveNumber % 3 == 0) {
+    if (clearedWaveNumber % 3 == 0 || clearedWaveNumber % 5 == 0) {
       game.pauseEngine();
       game.overlays.add('Upgrade');
       // 강화 오버레이에서 '계속하기' 누르면 resumeEngine + 다음 웨이브

@@ -6,6 +6,7 @@ import '../config/mbti_compatibility.dart';
 class GameState extends ChangeNotifier {
   // --- 글로벌 메타 데이터 ---
   int _coffeeBeans = 0;
+  int _totalCoffeeEarned = 0; // 총 획득 커피콩 (소비 무관)
   int _hpLevel = 0;
   int _attackLevel = 0;
   int _speedLevel = 0;
@@ -17,6 +18,7 @@ class GameState extends ChangeNotifier {
   };
 
   int get coffeeBeans => _coffeeBeans;
+  int get totalCoffeeEarned => _totalCoffeeEarned;
   int get hpLevel => _hpLevel;
   int get attackLevel => _attackLevel;
   int get speedLevel => _speedLevel;
@@ -39,6 +41,7 @@ class GameState extends ChangeNotifier {
 
   void addCoffeeBeans(int amount) {
     _coffeeBeans += amount;
+    _totalCoffeeEarned += amount; // 총 획득량 누적
     notifyListeners();
   }
 
@@ -277,6 +280,7 @@ class GameState extends ChangeNotifier {
   // --- 리셋 ---
   void reset() {
     _coffeeBeans = 0;
+    _totalCoffeeEarned = 0;
     _hpLevel = 0;
     _attackLevel = 0;
     _speedLevel = 0;
@@ -294,7 +298,6 @@ class GameState extends ChangeNotifier {
 
   /// 다시하기용 리셋 (HP/쿨다운만 초기화, 웨이브/캐릭터/강화/커피 유지)
   void resetForRetry() {
-    _coffeeBeans = 0;
     _currentHp = _maxHp;
     _enemiesRemaining = 0;
     _ultCooldownCurrent = 0;

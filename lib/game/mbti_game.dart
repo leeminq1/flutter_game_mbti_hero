@@ -969,19 +969,78 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// 현재 웨이브에서 동일 캐릭터/강화레벨로 재시작
-  void restartFromCurrentWave() {
+  /// ⚠️ onLoad()를 호출하면 안 됨! (gameState.reset()으로 모든 강화가 날아감)
+  void restartFromCurrentWave() async {
     final currentWave = gameState.currentWave - 1; // 0-indexed
+
+    // 현재(사망 시점) 스탯 백업 (인게임 아이템 획득 및 커피 강화분 유지)
+    final backedAttack = player.attackPower;
+    final backedSpeed = player.speed;
+    final backedMultiShot = player.multiShotCount;
+    final backedMaxHp = gameState.maxHp;
+    final backedAttackInterval = player.attackInterval;
+
+    debugPrint('[REVIVE] === BACKUP ===');
+    debugPrint(
+      '[REVIVE] attack=$backedAttack, speed=$backedSpeed, multiShot=$backedMultiShot',
+    );
+    debugPrint(
+      '[REVIVE] maxHp=$backedMaxHp, attackInterval=$backedAttackInterval',
+    );
+    debugPrint(
+      '[REVIVE] coffeeBeans=${gameState.coffeeBeans}, hpLv=${gameState.hpLevel}, atkLv=${gameState.attackLevel}',
+    );
+
     overlays.remove('GameOver');
     overlays.remove('Victory');
     world.removeAll(world.children);
     removeAll(children.whereType<EnemySpawner>());
-    // HP만 리셋 (강화 레벨, 캐릭터, 커피콩 유지)
+
+    // ── 맵 재구성 (onLoad의 맵 부분만 수동 실행) ──
+    final background = RectangleComponent(
+      size: mapSize,
+      paint: Paint()..color = const Color(0xFF1A1A2E),
+      priority: -10,
+    );
+    world.add(background);
+    await _addGridPattern();
+    await _addObstacles();
+
+    // ── 플레이어 재생성 (백업 스탯 주입) ──
+    final characterData = MbtiCharacters.getByType(gameState.selectedCharacter);
+    player = Player(
+      characterData: characterData,
+      restoredMaxHp: backedMaxHp,
+      restoredHp: backedMaxHp, // 풀피 리스폰
+      restoredSpeed: backedSpeed,
+      restoredAttack: backedAttack,
+      restoredMultiShot: backedMultiShot,
+      restoredAttackInterval: backedAttackInterval,
+    );
+    player.position = mapSize / 2;
+    world.add(player);
+    camera.follow(player, snap: true);
+
+    debugPrint('[REVIVE] === PLAYER CREATED with restored params ===');
+
+    // ── GameState 복원 (reset 호출하지 않음!) ──
     gameState.resetForRetry();
+    gameState.initHp(backedMaxHp);
+    gameState.initUltCooldown(characterData.ultCooldown);
+    gameState.initAssistCooldown();
+
+    debugPrint(
+      '[REVIVE] gameState maxHp=${gameState.maxHp}, currentHp=${gameState.currentHp}',
+    );
+
     resumeEngine();
-    onLoad().then((_) {
-      // 현재 웨이브부터 재시작
-      enemySpawner.startWave(currentWave);
-    });
+
+    // ── 적 스포너 재시작 ──
+    enemySpawner = EnemySpawner();
+    add(enemySpawner);
+    enemySpawner.startWave(currentWave);
+
+    debugPrint('[REVIVE] === COMPLETE === wave=$currentWave');
   }
 
   void startWithCharacter(CharacterType type) {

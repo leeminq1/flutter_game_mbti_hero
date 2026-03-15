@@ -141,10 +141,10 @@ class PowerUp extends PositionComponent
   void _applyEffect(Player player) {
     switch (type) {
       case PowerUpType.attackBoost:
-        player.attackPower += 5;
+        player.attackPower += 3;
         break;
       case PowerUpType.speedBoost:
-        player.speed += 15;
+        player.speed += 8;
         break;
       case PowerUpType.healPack:
         player.heal(player.maxHp * 0.25);
@@ -197,8 +197,23 @@ class PowerUp extends PositionComponent
     // 30% 확률로 드롭
     if (rand.nextDouble() > 0.30) return null;
 
-    final types = PowerUpType.values;
-    final type = types[rand.nextInt(types.length)];
+    final chance = rand.nextDouble();
+    PowerUpType type;
+
+    // 멀티샷 확률을 다른 아이템들보다 높게 설정 (약 32%)
+    // 나머지 4개는 각각 약 17%로 균등 분배
+    if (chance < 0.32) {
+      type = PowerUpType.multiShot;
+    } else if (chance < 0.49) {
+      type = PowerUpType.attackBoost;
+    } else if (chance < 0.66) {
+      type = PowerUpType.speedBoost;
+    } else if (chance < 0.83) {
+      type = PowerUpType.healPack;
+    } else {
+      type = PowerUpType.cooldownReduce;
+    }
+
     return PowerUp(type: type, position: position.clone());
   }
 }

@@ -5,12 +5,16 @@ import '../game/config/character_data.dart';
 class UnlockManager {
   static const String _prefix = 'character_unlocked_';
 
-  // 기본 해금 캐릭터
+  // 기본 해금 캐릭터 (전체 해금 — 광고는 다시하기에서만)
   static const Set<CharacterType> freeCharacters = {
     CharacterType.estj,
     CharacterType.entp,
     CharacterType.infp,
     CharacterType.isfj,
+    CharacterType.istp,
+    CharacterType.enfj,
+    CharacterType.intj,
+    CharacterType.esfp,
   };
 
   late SharedPreferences _prefs;

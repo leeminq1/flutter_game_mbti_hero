@@ -5,7 +5,11 @@ enum EnemyType {
   charger, // 돌격병 (급한 이메일)
   sniper, // 저격수 (지적질 상사)
   tanker, // 탱커 (방어적인 팀원)
-  midBoss, // 중간보스 (대리님)
+  bug, // 벌레 (사무실 바퀴벌레)
+  stapler, // 호치키스 (서류 빌런)
+  sharp, // 압정 (날카로운 조각)
+  mbtiBoss, // MBTI 보스 (5, 10, 15...)
+  midBoss, // 중간보스 (대리님 - 3, 6, 9...)
   finalBoss, // 최종보스 (꼰대 이사님)
 }
 
@@ -37,6 +41,7 @@ class WaveData {
 
     for (int i = 1; i <= 30; i++) {
       final isBossWave = i % 3 == 0;
+      final isMbtiBossWave = i % 5 == 0 && i != 30; // 30 is final boss
       final isFinalBoss = i == 30;
 
       // 총 적 수: Wave 1=30, Wave 2=40, Wave 3=50 ... (+10씩)
@@ -45,36 +50,50 @@ class WaveData {
       final enemies = <EnemyType, int>{};
 
       if (isFinalBoss) {
-        // 최종 보스전
+        // 최종 보스전 + 추가 MBTI 보스
         enemies[EnemyType.finalBoss] = 1;
-        final mobs = totalEnemies - 1;
-        enemies[EnemyType.bat] = (mobs * 0.4).toInt();
-        enemies[EnemyType.sniper] = (mobs * 0.3 * 0.6).toInt(); // 스나이퍼 수 40% 감소
-        enemies[EnemyType.charger] = (mobs * 0.3).toInt();
-      } else if (isBossWave) {
-        // 보스 웨이브
-        enemies[EnemyType.midBoss] = 1 + (i ~/ 10);
-        final mobs = totalEnemies - enemies[EnemyType.midBoss]!;
-        enemies[EnemyType.slime] = (mobs * 0.5).toInt();
-        enemies[EnemyType.bat] = (mobs * 0.3).toInt();
-        if (i > 5) {
-          enemies[EnemyType.charger] = (mobs * 0.2).toInt();
-        } else {
-          enemies[EnemyType.slime] = enemies[EnemyType.slime]! + (mobs * 0.2).toInt();
-        }
+        enemies[EnemyType.mbtiBoss] = 2; // 최종전에는 MBTI 보스 2명 동시 스폰!
+        final mobs = totalEnemies - 3;
+        enemies[EnemyType.bat] = (mobs * 0.2).toInt();
+        enemies[EnemyType.sharp] = (mobs * 0.2).toInt();
+        enemies[EnemyType.bug] = (mobs * 0.2).toInt();
+        enemies[EnemyType.stapler] = (mobs * 0.2).toInt();
+        enemies[EnemyType.charger] = (mobs * 0.2).toInt();
       } else {
-        // 일반 웨이브: 1라운드부터 다양하게 생성
-        int slimeCount = (totalEnemies * 0.4).toInt();
-        int batCount = (totalEnemies * 0.3).toInt();
-        int chargerCount = i >= 3 ? (totalEnemies * 0.2).toInt() : 0;
-        int sniperCount = ((totalEnemies - (slimeCount + batCount + chargerCount)) * 0.6).toInt(); // 스나이퍼 수 40% 감소
+        // 보스 배정
+        if (isBossWave) {
+          enemies[EnemyType.midBoss] = 1 + (i ~/ 10);
+        }
+        if (isMbtiBossWave) {
+          enemies[EnemyType.mbtiBoss] = 1 + (i ~/ 15);
+        }
 
-        enemies[EnemyType.slime] = slimeCount + ((totalEnemies - (slimeCount + batCount + chargerCount)) * 0.4).toInt(); // 스나이퍼 감소분을 슬라임으로 대체
+        final bossCount =
+            (enemies[EnemyType.midBoss] ?? 0) +
+            (enemies[EnemyType.mbtiBoss] ?? 0);
+        final mobs = totalEnemies - bossCount;
 
-        enemies[EnemyType.slime] = slimeCount;
-        enemies[EnemyType.bat] = batCount;
-        enemies[EnemyType.charger] = chargerCount;
-        enemies[EnemyType.sniper] = sniperCount;
+        // 일반 몹 스폰 분배
+        if (i < 3) {
+          enemies[EnemyType.slime] = (mobs * 0.6).toInt();
+          enemies[EnemyType.bat] = (mobs * 0.4).toInt();
+        } else if (i < 7) {
+          enemies[EnemyType.slime] = (mobs * 0.3).toInt();
+          enemies[EnemyType.bat] = (mobs * 0.2).toInt();
+          enemies[EnemyType.bug] = (mobs * 0.2).toInt();
+          enemies[EnemyType.charger] = (mobs * 0.15)
+              .toInt(); // 0.3→0.15 (50% 감소)
+        } else {
+          enemies[EnemyType.slime] = (mobs * 0.1).toInt();
+          enemies[EnemyType.bat] = (mobs * 0.1).toInt();
+          enemies[EnemyType.charger] = (mobs * 0.075)
+              .toInt(); // 0.15→0.075 (50% 감소)
+          enemies[EnemyType.sniper] = (mobs * 0.15).toInt();
+          enemies[EnemyType.tanker] = (mobs * 0.1).toInt();
+          enemies[EnemyType.bug] = (mobs * 0.15).toInt();
+          enemies[EnemyType.stapler] = (mobs * 0.1).toInt();
+          enemies[EnemyType.sharp] = (mobs * 0.15).toInt();
+        }
       }
 
       // 스폰 간격 (최소 0.15초)
