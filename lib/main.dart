@@ -13,6 +13,7 @@ import 'widgets/action_buttons.dart';
 import 'widgets/hud_overlay.dart';
 import 'widgets/countdown_overlay.dart';
 import 'widgets/upgrade_overlay.dart';
+import 'package:flame_audio/flame_audio.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -155,6 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _game = null;
       _inGame = false;
     });
+    FlameAudio.bgm.play('bgm_lobby.mp3', volume: 0.25);
   }
 
   void _retryGame() {

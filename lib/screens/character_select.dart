@@ -3,6 +3,7 @@ import '../game/config/character_data.dart';
 import '../game/config/mbti_compatibility.dart';
 import '../services/save_manager.dart';
 import 'leaderboard_screen.dart';
+import 'package:flame_audio/flame_audio.dart';
 
 /// 캐릭터 선택 화면 (캐릭터 → 동료 선택 2단계)
 class CharacterSelectScreen extends StatefulWidget {
@@ -111,7 +112,10 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
     required VoidCallback onTap,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        FlameAudio.play('sfx_button.ogg', volume: 0.5);
+        onTap();
+      },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -186,6 +190,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: GestureDetector(
         onTap: () {
+          FlameAudio.play('sfx_button.ogg', volume: 0.5);
           widget.onContinue?.call(saveData);
         },
         child: Container(
@@ -626,6 +631,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
       onExit: (_) => setState(() => _hoveredType = null),
       child: GestureDetector(
         onTap: () {
+          FlameAudio.play('sfx_button.ogg', volume: 0.5);
           if (isUnlocked) {
             if (isCompanion) {
               // 동료 선택 시 onSelect 호출을 _handleNewGame으로 래핑

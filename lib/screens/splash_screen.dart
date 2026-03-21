@@ -4,6 +4,7 @@ import '../services/ad_manager.dart';
 import '../services/save_manager.dart';
 import '../services/unlock_manager.dart';
 import '../main.dart';
+import 'package:flame_audio/flame_audio.dart';
 
 class SplashScreen extends StatefulWidget {
   final UnlockManager unlockManager;
@@ -36,6 +37,20 @@ class _SplashScreenState extends State<SplashScreen>
     )..repeat(reverse: true);
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
 
+    // 오디오 캐싱 및 로비 BGM 재생
+    FlameAudio.audioCache.loadAll([
+      'sfx_shoot.ogg', 'sfx_player_hit.ogg', 'sfx_player_die.ogg',
+      'sfx_ultimate.ogg', 'sfx_assist.ogg', 'sfx_enemy_spawn.ogg',
+      'sfx_enemy_hit.ogg', 'sfx_enemy_die.ogg', 'sfx_boss_warning.ogg',
+      'sfx_boss_attack.ogg', 'sfx_coin.ogg', 'sfx_powerup.ogg',
+      'sfx_heal.ogg', 'sfx_wave_clear.ogg', 'sfx_button.ogg',
+      'bgm_battle.mp3', 'bgm_boss.mp3', 'bgm_gameover.mp3', 'bgm_lobby.mp3'
+    ]).then((_) {
+      if (mounted) {
+        FlameAudio.bgm.play('bgm_lobby.mp3', volume: 0.25);
+      }
+    });
+
     // 3초 후 Loading이 끝나고 탭 기능 활성화
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
@@ -54,6 +69,8 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _onTap() {
     if (!_canStart) return; // 3초 전에는 탭해도 아무 일도 안 일어남
+    
+    FlameAudio.play('sfx_button.ogg', volume: 0.5);
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(

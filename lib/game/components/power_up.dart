@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import 'package:flame_audio/flame_audio.dart';
 import '../mbti_game.dart';
 import 'player.dart';
 
@@ -131,6 +132,7 @@ class PowerUp extends PositionComponent
     super.onCollisionStart(intersectionPoints, other);
 
     if (other is Player) {
+      FlameAudio.play('sfx_powerup.ogg', volume: 0.6);
       _applyEffect(other);
       // 획득 텍스트 표시
       _showPickupText();

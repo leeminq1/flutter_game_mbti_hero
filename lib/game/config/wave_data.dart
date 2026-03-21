@@ -44,8 +44,8 @@ class WaveData {
       final isMbtiBossWave = i % 5 == 0 && i != 30; // 30 is final boss
       final isFinalBoss = i == 30;
 
-      // 총 적 수: Wave 1=30, Wave 2=40, Wave 3=50 ... (+10씩)
-      final totalEnemies = 30 + 10 * (i - 1);
+      // 총 적 수: Wave 1=30, Wave 2=36, Wave 3=42 ... (+6씩)
+      final totalEnemies = 30 + 6 * (i - 1);
 
       final enemies = <EnemyType, int>{};
 
@@ -84,21 +84,22 @@ class WaveData {
           enemies[EnemyType.charger] = (mobs * 0.15)
               .toInt(); // 0.3→0.15 (50% 감소)
         } else {
-          enemies[EnemyType.slime] = (mobs * 0.1).toInt();
-          enemies[EnemyType.bat] = (mobs * 0.1).toInt();
+          // 강한 적 비율 완화 (sniper/tanker/stapler/sharp 줄임)
+          enemies[EnemyType.slime] = (mobs * 0.15).toInt();
+          enemies[EnemyType.bat] = (mobs * 0.15).toInt();
           enemies[EnemyType.charger] = (mobs * 0.075)
               .toInt(); // 0.15→0.075 (50% 감소)
-          enemies[EnemyType.sniper] = (mobs * 0.15).toInt();
-          enemies[EnemyType.tanker] = (mobs * 0.1).toInt();
+          enemies[EnemyType.sniper] = (mobs * 0.10).toInt();
+          enemies[EnemyType.tanker] = (mobs * 0.08).toInt();
           enemies[EnemyType.bug] = (mobs * 0.15).toInt();
-          enemies[EnemyType.stapler] = (mobs * 0.1).toInt();
-          enemies[EnemyType.sharp] = (mobs * 0.15).toInt();
+          enemies[EnemyType.stapler] = (mobs * 0.08).toInt();
+          enemies[EnemyType.sharp] = (mobs * 0.10).toInt();
         }
       }
 
-      // 스폰 간격 (최소 0.15초)
-      double spawnInterval = 0.6 - (i * 0.015);
-      if (spawnInterval < 0.15) spawnInterval = 0.15;
+      // 스폰 간격 완화 (최소 0.25초, 감소폭 줄임)
+      double spawnInterval = 0.6 - (i * 0.01);
+      if (spawnInterval < 0.25) spawnInterval = 0.25;
 
       // 지속 시간 (보스전은 길게)
       double duration = isBossWave ? 60.0 + (i * 2) : 40.0 + i;

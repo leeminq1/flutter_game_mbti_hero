@@ -6,6 +6,7 @@ import '../components/enemies/mbti_boss_enemy.dart';
 import '../config/wave_data.dart';
 import '../config/character_data.dart';
 import '../mbti_game.dart';
+import 'package:flame_audio/flame_audio.dart';
 
 /// 웨이브 기반 적 스폰 매니저
 class EnemySpawner extends Component with HasGameReference<MbtiGame> {
@@ -138,6 +139,9 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
   /// 보스 스폰 (적이 10 이하일 때)
   void _spawnBoss() {
     _bossSpawned = true;
+    FlameAudio.play('sfx_boss_warning.ogg');
+    FlameAudio.bgm.play('bgm_boss.mp3', volume: 0.3);
+    
     final isFinalBoss = (_currentWaveIndex + 1) == 30;
     final isMbtiBossWave = (_currentWaveIndex + 1) % 5 == 0 && !isFinalBoss;
     final isMidBossWave = (_currentWaveIndex + 1) % 3 == 0;
@@ -275,10 +279,18 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
   void _onWaveCleared() {
     if (!_waveActive) return; // 중복 방지
     _waveActive = false;
+    FlameAudio.play('sfx_wave_clear.ogg');
+    
+    // Resume Battle BGM if coming from a boss wave.
+    // Assuming Boss waves are cleared now:
+    final clearedWaveNumber = _currentWaveIndex + 1;
+    if (clearedWaveNumber % 3 == 0 || clearedWaveNumber % 5 == 0) {
+      FlameAudio.bgm.play('bgm_battle.mp3', volume: 0.25);
+    }
+    
     game.autoSave(); // 웨이브가 끝날 때 자동 저장
 
     // 보스 웨이브 클리어 시 (3의 배수 또는 5의 배수) → 강화 선택 화면
-    final clearedWaveNumber = _currentWaveIndex + 1;
     if (clearedWaveNumber % 3 == 0 || clearedWaveNumber % 5 == 0) {
       game.pauseEngine();
       game.overlays.add('Upgrade');

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
 import 'components/enemies/base_enemy.dart';
 import 'components/player.dart';
@@ -41,6 +42,21 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+
+    // 프리로드: BGM과 SFX 로드 (미리 로딩하여 딜레이 방지)
+    await FlameAudio.audioCache.loadAll([
+      'sfx_shoot.ogg', 'sfx_player_hit.ogg', 'sfx_player_die.ogg',
+      'sfx_ultimate.ogg', 'sfx_assist.ogg', 'sfx_enemy_spawn.ogg',
+      'sfx_enemy_hit.ogg', 'sfx_enemy_die.ogg', 'sfx_boss_warning.ogg',
+      'sfx_boss_attack.ogg', 'sfx_coin.ogg', 'sfx_powerup.ogg',
+      'sfx_heal.ogg', 'sfx_wave_clear.ogg', 'sfx_button.ogg',
+      'bgm_battle.mp3', 'bgm_boss.mp3', 'bgm_gameover.mp3', 'bgm_lobby.mp3'
+    ]);
+
+    // BGM 시작 (메인 배틀 음악)
+    if (!FlameAudio.bgm.isPlaying) {
+      FlameAudio.bgm.play('bgm_battle.mp3', volume: 0.25);
+    }
 
     // 프리로드: 모든 캐릭터의 스프라이트를 미리 캐싱합니다 (어시스트 시 지연 방지)
     for (final char in MbtiCharacters.all) {
@@ -489,6 +505,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       attackingPlayer.characterData.color,
       attackingPlayer.position,
     );
+    FlameAudio.play('sfx_ultimate.ogg');
   }
 
   /// ESTJ 필살기: "철벽 방어" - 전신 보호막 🛡️ + 범위 데미지
@@ -746,6 +763,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       companionData.color,
       player.position,
     );
+    FlameAudio.play('sfx_assist.ogg', volume: 0.6);
 
     // 동료 등장 이펙트 (실제 스프라이트 애니메이션)
     final companionPos = player.position.clone()..add(Vector2(0, -50));
@@ -952,6 +970,9 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void onPlayerDeath() {
+    FlameAudio.bgm.stop();
+    FlameAudio.bgm.play('bgm_gameover.mp3', volume: 0.4);
+    FlameAudio.play('sfx_player_die.ogg');
     gameState.gameOver();
     saveManager?.deleteSave(); // 사망 시 세이브 삭제
     overlays.add('GameOver');
@@ -964,6 +985,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     world.removeAll(world.children);
     removeAll(children.whereType<EnemySpawner>());
     gameState.reset();
+    FlameAudio.bgm.stop();
+    FlameAudio.bgm.play('bgm_battle.mp3', volume: 0.25);
     resumeEngine();
     onLoad();
   }

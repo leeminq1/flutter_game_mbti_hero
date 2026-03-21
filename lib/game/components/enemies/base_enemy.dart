@@ -7,6 +7,7 @@ import '../../mbti_game.dart';
 import '../player.dart';
 import '../projectiles/base_projectile.dart';
 import '../power_up.dart';
+import 'package:flame_audio/flame_audio.dart';
 
 class BaseEnemy extends PositionComponent
     with HasGameReference<MbtiGame>, CollisionCallbacks {
@@ -504,6 +505,7 @@ class BaseEnemy extends PositionComponent
     _attackTimer += dt;
     if (_attackTimer >= attackCooldown) {
       _attackTimer = 0;
+      FlameAudio.play('sfx_boss_attack.ogg', volume: 0.7);
 
       final rand = Random();
       final pattern = rand.nextInt(3);
@@ -560,6 +562,7 @@ class BaseEnemy extends PositionComponent
     if (currentHp <= 0) return;
 
     currentHp -= dmg;
+    FlameAudio.play('sfx_enemy_hit.ogg', volume: 0.4);
     _hitFlashTimer = _hitFlashDuration;
 
     // 보스인 경우 UI 체력바 업데이트
@@ -589,6 +592,8 @@ class BaseEnemy extends PositionComponent
 
   /// 사망 처리
   void die() {
+    FlameAudio.play('sfx_enemy_die.ogg', volume: 0.5);
+    
     if (_isBoss) {
       game.gameState.clearBoss();
       // 보스 사망 시 모든 적 투사체 제거
@@ -596,6 +601,7 @@ class BaseEnemy extends PositionComponent
     }
 
     // 커피콩 보상
+    FlameAudio.play('sfx_coin.ogg', volume: 0.4);
     game.gameState.addCoffeeBeans(expValue);
 
     // 파워업 드랍 시도

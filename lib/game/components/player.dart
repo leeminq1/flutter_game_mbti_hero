@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../config/character_data.dart';
 import '../mbti_game.dart';
+import 'package:flame_audio/flame_audio.dart';
 
 /// 플레이어 컴포넌트
 class Player extends SpriteAnimationComponent
@@ -183,6 +184,7 @@ class Player extends SpriteAnimationComponent
 
   /// 자동 공격 (캐릭터 타입별로 다름)
   void _autoAttack() {
+    FlameAudio.play('sfx_shoot.ogg', volume: 0.3);
     game.performAutoAttack(this);
   }
 
@@ -199,6 +201,7 @@ class Player extends SpriteAnimationComponent
     if (isInvincible || _damageInvincibleTimer > 0) return;
 
     currentHp = (currentHp - damage).clamp(0, maxHp);
+    FlameAudio.play('sfx_player_hit.ogg');
     game.gameState.takeDamage(damage);
     _damageInvincibleTimer = _damageInvincibleDuration;
 
@@ -210,6 +213,7 @@ class Player extends SpriteAnimationComponent
   /// 회복
   void heal(double amount) {
     currentHp = (currentHp + amount).clamp(0, maxHp);
+    FlameAudio.play('sfx_heal.ogg', volume: 0.6);
     game.gameState.heal(amount);
   }
 
