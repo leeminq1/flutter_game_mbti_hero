@@ -92,9 +92,40 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _inGame = false;
   MbtiGame? _game;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+        // 앱이 백그라운드로 갈 때 BGM 일시정지
+        FlameAudio.bgm.pause();
+        break;
+      case AppLifecycleState.resumed:
+        // 앱이 포그라운드로 돌아올 때 BGM 재개
+        FlameAudio.bgm.resume();
+        break;
+      case AppLifecycleState.detached:
+        break;
+    }
+  }
 
   void _startGame(CharacterType type, CharacterType companionType) {
     if (_game != null) return;

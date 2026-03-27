@@ -1,4 +1,4 @@
-package com.example.flutter_game
+package com.minq.mbtihero
 
 import io.flutter.embedding.android.FlutterActivity
 

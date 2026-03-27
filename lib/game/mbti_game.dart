@@ -37,6 +37,17 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   final SaveManager? saveManager;
   final SaveData? loadedSave;
 
+  // [성능] 활성 적 캐시 (매 프레임 world.children 순회 대신 사용)
+  final List<BaseEnemy> activeEnemies = [];
+
+  // [성능] 동시 스킬 텍스트 제한
+  int _activeSkillTextCount = 0;
+  static const int _maxSkillTextCount = 5;
+
+  // [성능] 사격 사운드 쿨타임 (초당 12회 이하로 제한)
+  double _shootSoundCooldown = 0;
+  static const double _shootSoundMinInterval = 0.08;
+
   MbtiGame({this.saveManager, this.loadedSave});
 
   @override
@@ -106,6 +117,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     // 적 스포너 생성 및 시작
     enemySpawner = EnemySpawner();
     add(enemySpawner);
+    activeEnemies.clear(); // 캐시 초기화
 
     // 세이브 데이터 복원
     if (loadedSave != null) {
@@ -232,7 +244,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void performAutoAttack(Player attackingPlayer) {
-    final enemies = world.children.whereType<BaseEnemy>().toList();
+    final enemies = activeEnemies;  // [성능] O(1) 캐시 접근
 
     switch (attackingPlayer.characterData.attackType) {
       case AttackType.wave:
@@ -428,8 +440,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void _dealDamageInRadius(Vector2 center, double radius, double damage) {
-    final enemies = world.children.whereType<BaseEnemy>();
-    for (final enemy in enemies) {
+    for (final enemy in activeEnemies) {  // [성능] 캐시 사용
       if (center.distanceTo(enemy.position) <= radius + enemy.radius) {
         enemy.takeDamage(damage);
       }
@@ -437,6 +448,10 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void showSkillText(String text, Color color, Vector2 pos) {
+    // [성능] 동시 스킬 텍스트 최대 5개로 제한
+    if (_activeSkillTextCount >= _maxSkillTextCount) return;
+    _activeSkillTextCount++;
+
     final textComp = TextComponent(
       text: text,
       position: pos.clone()..y -= 60,
@@ -456,7 +471,10 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       TimerComponent(
         period: 1.5,
         removeOnFinish: true,
-        onTick: () => textComp.removeFromParent(),
+        onTick: () {
+          _activeSkillTextCount--;
+          textComp.removeFromParent();
+        },
       ),
     );
 
@@ -885,7 +903,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         break;
       case AttackType.blink:
         // 암살자 동료: 전체 적 데미지
-        for (final enemy in world.children.whereType<BaseEnemy>()) {
+        for (final enemy in activeEnemies) {  // [성능] 캐시 사용
           enemy.takeDamage(baseDmg);
         }
         break;
@@ -941,7 +959,18 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   // ══════════════════════════════════════════
   // ═══ 게임 이벤트 ═══
   // ══════════════════════════════════════════
+  /// 적이 스폰될 때 호출 (EnemySpawner/BaseEnemy에서 호출)
+  void registerEnemy(BaseEnemy enemy) {
+    activeEnemies.add(enemy);
+  }
+
+  /// 적이 죽거나 제거될 때 호출 (BaseEnemy에서 호출)
+  void unregisterEnemy(BaseEnemy enemy) {
+    activeEnemies.remove(enemy);
+  }
+
   void onEnemyKilled(BaseEnemy enemy) {
+    unregisterEnemy(enemy);
     enemySpawner.onEnemyKilled();
   }
 
@@ -984,6 +1013,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     overlays.remove('Victory');
     world.removeAll(world.children);
     removeAll(children.whereType<EnemySpawner>());
+    activeEnemies.clear(); // [성능] 캐시 정리
+    _activeSkillTextCount = 0;
     gameState.reset();
     FlameAudio.bgm.stop();
     FlameAudio.bgm.play('bgm_battle.mp3', volume: 0.25);
@@ -1018,6 +1049,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     overlays.remove('Victory');
     world.removeAll(world.children);
     removeAll(children.whereType<EnemySpawner>());
+    activeEnemies.clear(); // [성능] 캐시 정리
+    _activeSkillTextCount = 0;
 
     // ── 맵 재구성 (onLoad의 맵 부분만 수동 실행) ──
     final background = RectangleComponent(

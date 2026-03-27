@@ -23,7 +23,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _controller;
   late Animation<double> _animation;
   bool _canStart = false; // 3초 뒤에 게임 시작 가능 여부
@@ -31,6 +31,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       duration: const Duration(seconds: 1),
       vsync: this,
@@ -63,8 +64,26 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+        FlameAudio.bgm.pause();
+        break;
+      case AppLifecycleState.resumed:
+        FlameAudio.bgm.resume();
+        break;
+      case AppLifecycleState.detached:
+        break;
+    }
   }
 
   void _onTap() {

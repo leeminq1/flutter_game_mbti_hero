@@ -19,6 +19,12 @@ class BaseEnemy extends PositionComponent
   late double attackCooldown;
   double _attackTimer = 0;
 
+  // Charger 전용 상태 (enemy_2: 돌진 후 자폭)
+  int _chargePhase = 0; // 0=접근, 1=돌진중, 2=자폭
+  Vector2? _chargeDirection; // 고정된 돌진 방향
+  double _chargeTimer = 0; // 돌진 경과 시간
+  static const double _chargeMaxDuration = 1.5; // 돌진 최대 시간(초)
+
   // 피격 이펙트
   double _hitFlashTimer = 0;
   static const double _hitFlashDuration = 0.15;
@@ -292,8 +298,8 @@ class BaseEnemy extends PositionComponent
         _chaseBatStyle(player, dt);
         break;
       case EnemyType.charger:
-        // 일정 거리까지 접근 후 돌격
-        _chargeAttack(player, dt, distToPlayer);
+        // 한 방향으로 돌진 후 자동 자폭 (피할 수 있음)
+        _chargerRushAttack(player, dt, distToPlayer);
         break;
       case EnemyType.sniper:
         // 일정 거리 유지하며 원거리 공격
@@ -396,7 +402,68 @@ class BaseEnemy extends PositionComponent
     }
   }
 
-  /// 돌격병: 가까우면 빠르게 돌격 후 폭발 (자폭)
+  /// Charger 전용: 접근 → 방향 고정 돌진 → 자동 자폭 (피할 수 있음)
+  void _chargerRushAttack(Player player, double dt, double distance) {
+    if (player.isRemoved && _chargePhase == 0) return;
+
+    switch (_chargePhase) {
+      case 0: // 접근 단계: 천천히 플레이어에게 접근
+        final direction = (player.position - position);
+        if (direction.length <= 1) return;
+
+        if (distance < 200) {
+          // 범위 안에 들어오면 방향 고정 후 돌진 시작
+          _chargeDirection = direction.normalized();
+          _chargePhase = 1;
+          _chargeTimer = 0;
+        } else {
+          // 천천히 접근
+          position.add(direction.normalized() * speed * 0.5 * dt);
+        }
+        break;
+
+      case 1: // 돌진 단계: 고정된 방향으로 빠르게 직진
+        _chargeTimer += dt;
+        final dir = _chargeDirection!;
+        position.add(dir * speed * 2.5 * dt);
+
+        // 돌진 중 플레이어와 충돌 체크 (접촉 데미지는 onCollision에서 처리)
+        // 일정 시간 후 자동 자폭
+        if (_chargeTimer >= _chargeMaxDuration) {
+          _chargePhase = 2;
+          _selfDestruct();
+        }
+        break;
+
+      case 2: // 자폭 완료 상태 (이미 처리됨)
+        break;
+    }
+  }
+
+  /// 자동 자폭: 폭발 이펙트 + 소멸 (보상 지급)
+  void _selfDestruct() {
+    // 폭발 이펙트 (💥)
+    final explosion = TextComponent(
+      text: '💥',
+      position: position.clone(),
+      anchor: Anchor.center,
+      textRenderer: TextPaint(style: const TextStyle(fontSize: 64)),
+      priority: 10,
+    );
+    explosion.add(
+      TimerComponent(
+        period: 0.3,
+        removeOnFinish: true,
+        onTick: () => explosion.removeFromParent(),
+      ),
+    );
+    game.world.add(explosion);
+
+    // 자폭 시에도 보상 지급 (die() 호출)
+    die();
+  }
+
+  /// 돌격병(stapler, sharp): 가까우면 빠르게 돌격 후 폭발 (자폭)
   void _chargeAttack(Player player, double dt, double distance) {
     if (player.isRemoved) return;
 
