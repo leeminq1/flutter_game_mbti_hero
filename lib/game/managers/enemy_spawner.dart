@@ -6,7 +6,6 @@ import '../components/enemies/mbti_boss_enemy.dart';
 import '../config/wave_data.dart';
 import '../config/character_data.dart';
 import '../mbti_game.dart';
-import 'package:flame_audio/flame_audio.dart';
 
 /// 웨이브 기반 적 스폰 매니저
 class EnemySpawner extends Component with HasGameReference<MbtiGame> {
@@ -70,21 +69,33 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
     // GameState 업데이트
     game.gameState.setWave(_currentWaveIndex + 1);
     game.gameState.setEnemiesRemaining(_totalEnemiesInWave);
+    game.debugLogState('start_wave_${_currentWaveIndex + 1}');
     debugPrint(
       '[WAVE ${_currentWaveIndex + 1}] Started: total=$_totalEnemiesInWave, queue=${_spawnQueue.length}, isMbti=${(_currentWaveIndex + 1) % 5 == 0}, bosses=${_currentWave!.enemies[EnemyType.mbtiBoss] ?? 0}',
     );
+    if ((_currentWaveIndex + 1) >= 5) {
+      debugPrint(
+        '[WAVE PERF] wave=${_currentWaveIndex + 1} batch=$_batchSize '
+        'spawnInterval=${_effectiveSpawnInterval.toStringAsFixed(2)} '
+        'enemyCap=${game.maxActiveEnemies} queue=${_spawnQueue.length}',
+      );
+    }
   }
 
   /// 현재 웨이브의 배치 크기 (조금 덜 몰려나오도록 5부터 시작, 완만한 증가)
   int get _batchSize {
-    final base = 5;
-    return (base * pow(1.15, _currentWaveIndex)).toInt().clamp(5, 40);
+    final base = _currentWaveIndex >= 4 ? 4 : 5;
+    final growth = _currentWaveIndex >= 4 ? 1.05 : 1.10;
+    return (base * pow(growth, _currentWaveIndex)).toInt().clamp(4, 16);
   }
 
   /// 현재 웨이브의 스폰 간격 (더 천천히 줄어들게)
   double get _effectiveSpawnInterval {
-    double interval = 1.0 - (_currentWaveIndex * 0.015);
-    return interval.clamp(0.4, 1.0);
+    double interval = 1.02 - (_currentWaveIndex * 0.010);
+    if (_currentWaveIndex >= 4) {
+      interval += 0.16;
+    }
+    return interval.clamp(0.68, 1.18);
   }
 
   @override
@@ -116,14 +127,38 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
       debugPrint(
         '[WAVE ${_currentWaveIndex + 1}] Boss spawn triggered! remaining=${game.gameState.enemiesRemaining}, isMbti=$isMbtiBossWave, isMid=$isBossWave',
       );
+      debugPrint(
+        '[WAVE PERF] boss wave=${_currentWaveIndex + 1} '
+        'projectiles=${game.activeProjectiles.length} '
+        'world=${game.world.children.length}',
+      );
       _spawnBoss();
     }
 
     // 개별 스폰 타이머 (배치를 잘게 쪼개어 연속 스폰)
+    final bossPressureThrottle = _bossSpawned && isMbtiBossWave
+        ? 2.4
+        : _bossSpawned && isBossWave
+        ? 1.4
+        : 1.0;
+    final maxEnemiesWhileBossActive = _bossSpawned && isMbtiBossWave
+        ? 14
+        : _bossSpawned && isBossWave
+        ? 18
+        : game.maxActiveEnemies;
+    final projectileBudgetWhileBossActive = _bossSpawned && isMbtiBossWave
+        ? 12
+        : _bossSpawned && isBossWave
+        ? 16
+        : 20;
     final singleSpawnInterval =
-        _effectiveSpawnInterval / _batchSize.clamp(1, 100);
+        (_effectiveSpawnInterval * bossPressureThrottle) /
+        _batchSize.clamp(1, 100);
     _spawnTimer += dt;
-    if (_spawnTimer >= singleSpawnInterval && _spawnQueue.isNotEmpty) {
+    if (_spawnTimer >= singleSpawnInterval &&
+        _spawnQueue.isNotEmpty &&
+        game.activeEnemies.length < maxEnemiesWhileBossActive &&
+        game.activeProjectiles.length < projectileBudgetWhileBossActive) {
       _spawnTimer = 0;
       _spawnEnemy(_spawnQueue.removeAt(0));
     }
@@ -139,8 +174,12 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
   /// 보스 스폰 (적이 10 이하일 때)
   void _spawnBoss() {
     _bossSpawned = true;
-    FlameAudio.play('sfx_boss_warning.ogg');
-    FlameAudio.bgm.play('bgm_boss.mp3', volume: 0.3);
+    game.playThrottledSfx(
+      'sfx_boss_warning.ogg',
+      volume: 0.8,
+      minInterval: 0.4,
+    );
+    game.debugLogState('boss_spawn');
     
     final isFinalBoss = (_currentWaveIndex + 1) == 30;
     final isMbtiBossWave = (_currentWaveIndex + 1) % 5 == 0 && !isFinalBoss;
@@ -151,6 +190,10 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
       final bossCount = _currentWave!.enemies[EnemyType.mbtiBoss] ?? 0;
       for (int i = 0; i < bossCount; i++) {
         final spawnPos = _getSpawnPosition();
+        _showBossSpawnMarker(
+          spawnPos,
+          label: isFinalBoss ? 'FINAL BOSS' : 'MBTI BOSS',
+        );
 
         // 랜덤 MBTI 캐릭터 선택 (0~7)
         final randomCharType = CharacterType.values[_random.nextInt(8)];
@@ -184,14 +227,7 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
             ),
           ),
         );
-        warningText.add(
-          TimerComponent(
-            period: 3.0,
-            removeOnFinish: true,
-            onTick: () => warningText.removeFromParent(),
-          ),
-        );
-        game.world.add(warningText);
+        game.addTimedWorldComponent(warningText, lifetime: 3.0);
       }
     }
 
@@ -201,6 +237,10 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
       final bossCount = _currentWave!.enemies[bossType] ?? 0;
       for (int i = 0; i < bossCount; i++) {
         final spawnPos = _getSpawnPosition();
+        _showBossSpawnMarker(
+          spawnPos,
+          label: isFinalBoss ? 'FINAL BOSS' : 'MID BOSS',
+        );
         final boss = BaseEnemy(type: bossType, position: spawnPos);
         game.world.add(boss);
       }
@@ -265,28 +305,56 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
       ),
     );
 
-    textComp.add(
-      TimerComponent(
-        period: 2.5,
-        removeOnFinish: true,
-        onTick: () => textComp.removeFromParent(),
-      ),
-    );
-    game.world.add(textComp);
+    game.addTimedWorldComponent(textComp, lifetime: 2.5);
   }
 
   /// 현재 웨이브 클리어
+  void _showBossSpawnMarker(Vector2 spawnPos, {required String label}) {
+    final marker = CircleComponent(
+      radius: 96,
+      position: spawnPos,
+      anchor: Anchor.center,
+      priority: 26,
+      paint: Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..color = Colors.redAccent.withValues(alpha: 0.75),
+    );
+    marker.add(
+      TextComponent(
+        text: label,
+        position: Vector2(0, -112),
+        anchor: Anchor.center,
+        priority: 27,
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            color: Colors.redAccent,
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            shadows: [Shadow(color: Colors.black, blurRadius: 8)],
+          ),
+        ),
+      ),
+    );
+    game.addTimedWorldComponent(marker, lifetime: 1.4);
+  }
+
   void _onWaveCleared() {
     if (!_waveActive) return; // 중복 방지
     _waveActive = false;
-    FlameAudio.play('sfx_wave_clear.ogg');
+    game.playThrottledSfx(
+      'sfx_wave_clear.ogg',
+      volume: 0.8,
+      minInterval: 0.3,
+    );
     
-    // Resume Battle BGM if coming from a boss wave.
-    // Assuming Boss waves are cleared now:
     final clearedWaveNumber = _currentWaveIndex + 1;
-    if (clearedWaveNumber % 3 == 0 || clearedWaveNumber % 5 == 0) {
-      FlameAudio.bgm.play('bgm_battle.mp3', volume: 0.25);
-    }
+    game.debugLogState('wave_cleared');
+    debugPrint(
+      '[WAVE $clearedWaveNumber] cleared: upgradeOverlay=${clearedWaveNumber % 3 == 0 || clearedWaveNumber % 5 == 0} '
+      'isMbtiBossWave=${clearedWaveNumber % 5 == 0 && clearedWaveNumber != 30} '
+      'isMidBossWave=${clearedWaveNumber % 3 == 0}',
+    );
     
     game.autoSave(); // 웨이브가 끝날 때 자동 저장
 
@@ -299,11 +367,17 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
       _waveTransitionTimer = _waveTransitionDelay;
 
       // 강화가 끝난 다음 웨이브 시작 시 강해짐 알람 출력
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (game.isAttached) {
-          _showBossDifficultyText();
-        }
-      });
+      add(
+        TimerComponent(
+          period: 0.5,
+          removeOnFinish: true,
+          onTick: () {
+            if (game.isAttached) {
+              _showBossDifficultyText();
+            }
+          },
+        ),
+      );
     } else {
       _waitingForNextWave = true;
       _waveTransitionTimer = _waveTransitionDelay;

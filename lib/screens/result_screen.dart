@@ -476,7 +476,7 @@ class PauseOverlay extends StatelessWidget {
               GestureDetector(
                 onTap: () {
                   game.gameState.togglePause();
-                  game.resumeEngine();
+                  game.resumeGameplayIfAllowed(reason: 'pause_overlay');
                   game.overlays.remove('Pause');
                 },
                 child: Container(

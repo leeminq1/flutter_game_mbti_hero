@@ -2,9 +2,9 @@ import 'dart:math';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
-import 'package:flame_audio/flame_audio.dart';
 import '../mbti_game.dart';
 import 'player.dart';
+import '../../services/sfx_manager.dart';
 
 /// 파워업 타입
 enum PowerUpType {
@@ -132,7 +132,11 @@ class PowerUp extends PositionComponent
     super.onCollisionStart(intersectionPoints, other);
 
     if (other is Player) {
-      FlameAudio.play('sfx_powerup.ogg', volume: 0.6);
+      SfxManager.playUi(
+        'sfx_powerup.ogg',
+        volume: 0.18,
+        minInterval: 0.16,
+      );
       _applyEffect(other);
       // 획득 텍스트 표시
       _showPickupText();
@@ -163,6 +167,9 @@ class PowerUp extends PositionComponent
   }
 
   void _showPickupText() {
+    if (!game.canSpawnTransientEffect()) {
+      return;
+    }
     final label = getLabel(type);
     final text = TextComponent(
       text: label,

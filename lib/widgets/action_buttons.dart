@@ -1,6 +1,7 @@
 import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/material.dart';
 import '../game/mbti_game.dart';
+import 'minimap_overlay.dart';
 
 /// 공격 & 필살기 버튼 + 조이스틱 오버레이
 class ActionOverlay extends StatefulWidget {
@@ -56,6 +57,11 @@ class _ActionOverlayState extends State<ActionOverlay>
 
         // === 우측 중단: 일시정지 버튼 (Wave 정보 아래) ===
         Positioned(right: 16, top: 70, child: _buildPauseButton()),
+        Positioned(
+          right: 12,
+          top: 142,
+          child: MiniMapOverlay(game: widget.game),
+        ),
       ],
     );
   }
@@ -309,7 +315,7 @@ class _ActionOverlayState extends State<ActionOverlay>
             widget.game.pauseEngine();
             widget.game.overlays.add('Pause');
           } else {
-            widget.game.resumeEngine();
+            widget.game.resumeGameplayIfAllowed(reason: 'pause_button');
             widget.game.overlays.remove('Pause');
           }
         },

@@ -7,13 +7,15 @@ import 'screens/character_select.dart';
 import 'screens/result_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/ad_manager.dart';
+import 'services/bgm_manager.dart';
 import 'services/save_manager.dart';
+import 'services/sfx_manager.dart';
 import 'services/unlock_manager.dart';
 import 'widgets/action_buttons.dart';
 import 'widgets/hud_overlay.dart';
 import 'widgets/countdown_overlay.dart';
+import 'widgets/resume_overlay.dart';
 import 'widgets/upgrade_overlay.dart';
-import 'package:flame_audio/flame_audio.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -111,20 +113,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    switch (state) {
-      case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.hidden:
-        // 앱이 백그라운드로 갈 때 BGM 일시정지
-        FlameAudio.bgm.pause();
-        break;
-      case AppLifecycleState.resumed:
-        // 앱이 포그라운드로 돌아올 때 BGM 재개
-        FlameAudio.bgm.resume();
-        break;
-      case AppLifecycleState.detached:
-        break;
+    final game = _game;
+    if (game != null) {
+      game.handleAppLifecycleState(state);
+      return;
     }
+    BgmManager.handleLifecycleChange(state);
+    SfxManager.handleLifecycleChange(state);
   }
 
   void _startGame(CharacterType type, CharacterType companionType) {
@@ -187,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _game = null;
       _inGame = false;
     });
-    FlameAudio.bgm.play('bgm_lobby.mp3', volume: 0.25);
+    BgmManager.setTrack(BgmTrack.lobby);
   }
 
   void _retryGame() {
@@ -347,6 +342,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               'Pause': (context, game) =>
                   PauseOverlay(game: game as MbtiGame, onLobby: _returnToLobby),
+              'ResumePrompt': (context, game) =>
+                  ResumeOverlay(game: game as MbtiGame),
               'Countdown': (context, game) =>
                   CountdownOverlay(game: game as MbtiGame),
               'Upgrade': (context, game) =>

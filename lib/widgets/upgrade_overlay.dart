@@ -121,7 +121,9 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
 
     // HP 적용
     if (draftHp > 0) {
-      for (int i = 0; i < draftHp; i++) gs.upgradeHp();
+      for (int i = 0; i < draftHp; i++) {
+        gs.upgradeHp();
+      }
       final newMax = gs.maxHp + (20.0 * draftHp);
       gs.initHp(newMax);
       gs.heal(20.0 * draftHp);
@@ -129,13 +131,17 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
 
     // ATK 적용
     if (draftAtk > 0) {
-      for (int i = 0; i < draftAtk; i++) gs.upgradeAttack();
+      for (int i = 0; i < draftAtk; i++) {
+        gs.upgradeAttack();
+      }
       widget.game.player.attackPower += (3 * draftAtk);
     }
 
     // SPD 적용
     if (draftSpd > 0) {
-      for (int i = 0; i < draftSpd; i++) gs.upgradeSpeed();
+      for (int i = 0; i < draftSpd; i++) {
+        gs.upgradeSpeed();
+      }
       widget.game.player.speed += (10 * draftSpd);
     }
 
@@ -144,7 +150,7 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
     }
 
     widget.game.overlays.remove('Upgrade');
-    widget.game.resumeEngine();
+    widget.game.resumeGameplayIfAllowed(reason: 'upgrade_overlay');
   }
 
   void _saveGlobal() {

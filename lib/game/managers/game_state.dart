@@ -4,6 +4,8 @@ import '../config/mbti_compatibility.dart';
 
 /// 게임 상태 관리 (Flutter UI와 Flame 간 데이터 연동)
 class GameState extends ChangeNotifier {
+  static const int _cooldownNotifyBuckets = 180;
+
   // --- 글로벌 메타 데이터 ---
   int _coffeeBeans = 0;
   int _totalCoffeeEarned = 0; // 총 획득 커피콩 (소비 무관)
@@ -104,6 +106,7 @@ class GameState extends ChangeNotifier {
   // --- 동료 호출 쿨타임 ---
   double _assistCooldownMax = 30;
   double _assistCooldownCurrent = 0;
+  int _assistCooldownBucket = 0;
 
   double get assistCooldownMax => _assistCooldownMax;
   double get assistCooldownCurrent => _assistCooldownCurrent;
@@ -118,11 +121,19 @@ class GameState extends ChangeNotifier {
     );
     _assistCooldownMax = 30 * cdMultiplier;
     _assistCooldownCurrent = 0;
+    _assistCooldownBucket = _cooldownBucket(
+      _assistCooldownCurrent,
+      _assistCooldownMax,
+    );
     notifyListeners();
   }
 
   void useAssist() {
     _assistCooldownCurrent = _assistCooldownMax;
+    _assistCooldownBucket = _cooldownBucket(
+      _assistCooldownCurrent,
+      _assistCooldownMax,
+    );
     notifyListeners();
   }
 
@@ -132,7 +143,14 @@ class GameState extends ChangeNotifier {
         0,
         _assistCooldownMax,
       );
-      notifyListeners();
+      final nextBucket = _cooldownBucket(
+        _assistCooldownCurrent,
+        _assistCooldownMax,
+      );
+      if (nextBucket != _assistCooldownBucket) {
+        _assistCooldownBucket = nextBucket;
+        notifyListeners();
+      }
     }
   }
 
@@ -188,6 +206,7 @@ class GameState extends ChangeNotifier {
   // --- 필살기 쿨타임 ---
   double _ultCooldownMax = 25;
   double _ultCooldownCurrent = 0;
+  int _ultCooldownBucket = 0;
 
   double get ultCooldownMax => _ultCooldownMax;
   double get ultCooldownCurrent => _ultCooldownCurrent;
@@ -199,11 +218,19 @@ class GameState extends ChangeNotifier {
   void initUltCooldown(double max) {
     _ultCooldownMax = max;
     _ultCooldownCurrent = 0;
+    _ultCooldownBucket = _cooldownBucket(
+      _ultCooldownCurrent,
+      _ultCooldownMax,
+    );
     notifyListeners();
   }
 
   void useUlt() {
     _ultCooldownCurrent = _ultCooldownMax;
+    _ultCooldownBucket = _cooldownBucket(
+      _ultCooldownCurrent,
+      _ultCooldownMax,
+    );
     notifyListeners();
   }
 
@@ -213,7 +240,11 @@ class GameState extends ChangeNotifier {
         0,
         _ultCooldownMax,
       );
-      notifyListeners();
+      final nextBucket = _cooldownBucket(_ultCooldownCurrent, _ultCooldownMax);
+      if (nextBucket != _ultCooldownBucket) {
+        _ultCooldownBucket = nextBucket;
+        notifyListeners();
+      }
     }
   }
 
@@ -222,6 +253,7 @@ class GameState extends ChangeNotifier {
       0,
       _ultCooldownMax,
     );
+    _ultCooldownBucket = _cooldownBucket(_ultCooldownCurrent, _ultCooldownMax);
     notifyListeners();
   }
 
@@ -289,6 +321,11 @@ class GameState extends ChangeNotifier {
     _enemiesRemaining = 0;
     _ultCooldownCurrent = 0;
     _assistCooldownCurrent = 0;
+    _ultCooldownBucket = _cooldownBucket(_ultCooldownCurrent, _ultCooldownMax);
+    _assistCooldownBucket = _cooldownBucket(
+      _assistCooldownCurrent,
+      _assistCooldownMax,
+    );
     _isGameOver = false;
     _isVictory = false;
     _isPaused = false;
@@ -302,10 +339,23 @@ class GameState extends ChangeNotifier {
     _enemiesRemaining = 0;
     _ultCooldownCurrent = 0;
     _assistCooldownCurrent = 0;
+    _ultCooldownBucket = _cooldownBucket(_ultCooldownCurrent, _ultCooldownMax);
+    _assistCooldownBucket = _cooldownBucket(
+      _assistCooldownCurrent,
+      _assistCooldownMax,
+    );
     _isGameOver = false;
     _isVictory = false;
     _isPaused = false;
     _bossActive = false;
     notifyListeners();
+  }
+
+  int _cooldownBucket(double current, double max) {
+    if (max <= 0) {
+      return 0;
+    }
+    return ((current / max).clamp(0.0, 1.0) * _cooldownNotifyBuckets)
+        .round();
   }
 }

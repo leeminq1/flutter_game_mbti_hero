@@ -63,6 +63,27 @@ class CharacterData {
 }
 
 /// 전체 캐릭터 데이터 정의
+String attackProjectileEmoji(AttackType type) {
+  switch (type) {
+    case AttackType.wave:
+      return '🛡️';
+    case AttackType.homing:
+      return '💡';
+    case AttackType.summon:
+      return '🌸';
+    case AttackType.straight:
+      return '🔧';
+    case AttackType.aura:
+      return '🚩';
+    case AttackType.blink:
+      return '📄';
+    case AttackType.rapid:
+      return '🎤';
+    case AttackType.shield:
+      return '🛡️';
+  }
+}
+
 class MbtiCharacters {
   static const List<CharacterData> all = [
     // ── 기존 4캐릭터 ──
@@ -180,7 +201,7 @@ class MbtiCharacters {
       mbti: 'INTJ',
       title: '용의주도한 전략가',
       role: '🗡️ 암살자',
-      description: '냉철한 분석과 순간이동.\n적 HP 낮을수록 데미지 UP.',
+      description: '냉철한 분석과 전술 사격.\n가까워도 원거리 공격만 유지.',
       maxHp: 90,
       attack: 8, // 2위급
       speed: 95,

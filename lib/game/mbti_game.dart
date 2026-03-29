@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
-import 'package:flame_audio/flame_audio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'components/enemies/base_enemy.dart';
 import 'components/player.dart';
@@ -10,7 +11,9 @@ import 'config/character_data.dart';
 import 'config/mbti_compatibility.dart';
 import 'managers/enemy_spawner.dart';
 import 'managers/game_state.dart';
+import '../services/bgm_manager.dart';
 import '../services/save_manager.dart';
+import '../services/sfx_manager.dart';
 
 /// MBTI 히어로: 직장인 생존기 - 메인 게임 클래스
 class MbtiGame extends FlameGame with HasCollisionDetection {
@@ -39,35 +42,48 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
   // [성능] 활성 적 캐시 (매 프레임 world.children 순회 대신 사용)
   final List<BaseEnemy> activeEnemies = [];
+  final List<Projectile> activeProjectiles = [];
 
   // [성능] 동시 스킬 텍스트 제한
   int _activeSkillTextCount = 0;
   static const int _maxSkillTextCount = 5;
+  static const int _maxProjectileCount = 48;
+  static const int _maxTransientEffects = 18;
+  static const int _maxActiveEnemies = 20;
+  static const double _maxFrameDt = 1 / 20;
 
   // [성능] 사격 사운드 쿨타임 (초당 12회 이하로 제한)
   double _shootSoundCooldown = 0;
-  static const double _shootSoundMinInterval = 0.08;
+  static const double _shootSoundMinInterval = 0.18;
+  double _debugStatsTimer = 0;
+  double _wavePerfLogCooldown = 0;
+  int _effectBudgetSkips = 0;
+  bool _staticWorldInitialized = false;
+  final List<Component> _staticWorldComponents = [];
+  PositionComponent? _activeCompanionVisual;
+  double _activeCompanionLifetime = 0;
+  int _activeTransientEffects = 0;
+  bool _pausedByAppLifecycle = false;
+  bool _resumeAfterAppLifecycle = false;
+  bool _enginePausedByAppLifecycle = false;
+  bool _appLifecycleActive = true;
+  bool _awaitingResumeConfirmation = false;
+  bool _countdownResumeAuthorized = false;
+  AppLifecycleState? _lastObservedLifecycleState;
+  int _resumePromptToken = 0;
 
   MbtiGame({this.saveManager, this.loadedSave});
+
+  bool get isAppLifecycleActive => _appLifecycleActive;
+  bool get isAwaitingResumeConfirmation => _awaitingResumeConfirmation;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // 프리로드: BGM과 SFX 로드 (미리 로딩하여 딜레이 방지)
-    await FlameAudio.audioCache.loadAll([
-      'sfx_shoot.ogg', 'sfx_player_hit.ogg', 'sfx_player_die.ogg',
-      'sfx_ultimate.ogg', 'sfx_assist.ogg', 'sfx_enemy_spawn.ogg',
-      'sfx_enemy_hit.ogg', 'sfx_enemy_die.ogg', 'sfx_boss_warning.ogg',
-      'sfx_boss_attack.ogg', 'sfx_coin.ogg', 'sfx_powerup.ogg',
-      'sfx_heal.ogg', 'sfx_wave_clear.ogg', 'sfx_button.ogg',
-      'bgm_battle.mp3', 'bgm_boss.mp3', 'bgm_gameover.mp3', 'bgm_lobby.mp3'
-    ]);
-
-    // BGM 시작 (메인 배틀 음악)
-    if (!FlameAudio.bgm.isPlaying) {
-      FlameAudio.bgm.play('bgm_battle.mp3', volume: 0.25);
-    }
+    // 오디오는 Splash의 AudioBootstrap에서 한 번만 준비한다.
+    // 여기서는 필요한 트랙만 요청한다.
+    unawaited(setBgmTrack(BgmTrack.battle));
 
     // 프리로드: 모든 캐릭터의 스프라이트를 미리 캐싱합니다 (어시스트 시 지연 방지)
     for (final char in MbtiCharacters.all) {
@@ -86,18 +102,11 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       );
     }
     // 맵 배경 (어두운 사무실 색상)
-    final background = RectangleComponent(
-      size: mapSize,
-      paint: Paint()..color = const Color(0xFF1A1A2E),
-      priority: -10,
-    );
-    world.add(background);
+    await _ensureStaticWorld();
 
     // 바닥 그리드 패턴 (AI 리소스 타일링)
-    await _addGridPattern();
 
     // 장애물 배치
-    await _addObstacles();
 
     // 플레이어 생성
     final characterData = MbtiCharacters.getByType(gameState.selectedCharacter);
@@ -117,6 +126,10 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     // 적 스포너 생성 및 시작
     enemySpawner = EnemySpawner();
     add(enemySpawner);
+    activeProjectiles.clear();
+    _activeSkillTextCount = 0;
+    _effectBudgetSkips = 0;
+    _debugStatsTimer = 0;
     activeEnemies.clear(); // 캐시 초기화
 
     // 세이브 데이터 복원
@@ -139,8 +152,402 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   void onMount() {
     super.onMount();
     // 3, 2, 1 카운트다운 오버레이를 표시하고 엔진 일시정지 (몬스터/캐릭터 정지)
+    _awaitingResumeConfirmation = false;
+    overlays.remove('ResumePrompt');
+    _countdownResumeAuthorized = true;
     pauseEngine();
     overlays.add('Countdown');
+  }
+
+  @override
+  void update(double dt) {
+    if (!_appLifecycleActive) {
+      return;
+    }
+
+    final frameDt = dt.clamp(0, _maxFrameDt).toDouble();
+
+    super.update(frameDt);
+    if (_shootSoundCooldown > 0) {
+      _shootSoundCooldown = max(0, _shootSoundCooldown - frameDt);
+    }
+    if (_wavePerfLogCooldown > 0) {
+      _wavePerfLogCooldown = max(0, _wavePerfLogCooldown - frameDt);
+    }
+    SfxManager.update(frameDt);
+    if (_activeCompanionVisual != null) {
+      if (_activeCompanionVisual!.isRemoved) {
+        _activeCompanionVisual = null;
+        _activeCompanionLifetime = 0;
+      } else if (_activeCompanionLifetime > 0) {
+        _activeCompanionLifetime = max(0, _activeCompanionLifetime - frameDt);
+        if (_activeCompanionLifetime <= 0) {
+          _removeActiveCompanionVisual();
+        }
+      }
+    }
+
+    if (!kDebugMode) {
+      return;
+    }
+
+    _debugStatsTimer += frameDt;
+    if (_debugStatsTimer >= 15) {
+      _debugStatsTimer = 0;
+      debugLogState('heartbeat');
+    }
+
+    final inHotWave = gameState.currentWave >= 5;
+    final underPressure =
+        activeProjectiles.length >= 18 ||
+        activeEnemies.length >= 16 ||
+        world.children.length >= 62;
+    if (inHotWave && underPressure && _wavePerfLogCooldown <= 0) {
+      _wavePerfLogCooldown = 4;
+      debugLogState('wave_hotspot');
+    }
+  }
+
+  Future<void> setBgmTrack(
+    BgmTrack track, {
+    bool forceRestart = false,
+  }) async {
+    await BgmManager.setTrack(track, forceRestart: forceRestart);
+  }
+
+  void tryPlayShootSfx() {
+    if (_shootSoundCooldown > 0) {
+      return;
+    }
+    _shootSoundCooldown = _shootSoundMinInterval;
+    final played = SfxManager.playGameplay(
+      'sfx_shoot.ogg',
+      volume: 0.3,
+      minInterval: _shootSoundMinInterval,
+      activeEnemies: activeEnemies.length,
+      activeProjectiles: activeProjectiles.length,
+    );
+    if (!played) {
+      _effectBudgetSkips++;
+    }
+  }
+
+  void playThrottledSfx(
+    String asset, {
+    double volume = 1.0,
+    double minInterval = 0.08,
+  }) {
+    final played = SfxManager.playGameplay(
+      asset,
+      volume: volume,
+      minInterval: minInterval,
+      activeEnemies: activeEnemies.length,
+      activeProjectiles: activeProjectiles.length,
+    );
+    if (!played) {
+      _effectBudgetSkips++;
+    }
+  }
+
+  void spawnProjectile(Projectile projectile) {
+    if (activeProjectiles.length >= _maxProjectileCount) {
+      _effectBudgetSkips++;
+      return;
+    }
+    world.add(projectile);
+  }
+
+  void registerEnemy(BaseEnemy enemy) {
+    if (!activeEnemies.contains(enemy)) {
+      activeEnemies.add(enemy);
+    }
+  }
+
+  void unregisterEnemy(BaseEnemy enemy) {
+    activeEnemies.remove(enemy);
+  }
+
+  void registerProjectile(Projectile projectile) {
+    if (activeProjectiles.contains(projectile)) {
+      return;
+    }
+    if (activeProjectiles.length >= _maxProjectileCount) {
+      _effectBudgetSkips++;
+      projectile.removeFromParent();
+      return;
+    }
+    activeProjectiles.add(projectile);
+  }
+
+  void unregisterProjectile(Projectile projectile) {
+    activeProjectiles.remove(projectile);
+  }
+
+  int get maxActiveEnemies => _maxActiveEnemies;
+
+  void handleAppLifecycleState(AppLifecycleState state) {
+    if (_lastObservedLifecycleState == state) {
+      return;
+    }
+    _lastObservedLifecycleState = state;
+    unawaited(BgmManager.handleLifecycleChange(state));
+    SfxManager.handleLifecycleChange(state);
+    debugPrint(
+      '[APP] game lifecycle=$state paused=$paused gamePaused=${gameState.isPaused} gameOver=${gameState.isGameOver} victory=${gameState.isVictory}',
+    );
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        _appLifecycleActive = false;
+        _joystickDirection = Vector2.zero();
+        _awaitingResumeConfirmation = false;
+        _countdownResumeAuthorized = false;
+        _resumePromptToken++;
+        BgmManager.revokeGameplayRestore();
+        overlays.remove('ResumePrompt');
+        overlays.remove('Countdown');
+        if (!_pausedByAppLifecycle) {
+          _resumeAfterAppLifecycle =
+              !paused &&
+              !gameState.isPaused &&
+              !gameState.isGameOver &&
+              !gameState.isVictory;
+          _pausedByAppLifecycle = true;
+          _enginePausedByAppLifecycle = !paused;
+          if (_enginePausedByAppLifecycle) {
+            pauseEngine();
+          }
+        }
+        break;
+      case AppLifecycleState.resumed:
+        _appLifecycleActive = true;
+        final shouldResume =
+            _pausedByAppLifecycle &&
+            _resumeAfterAppLifecycle &&
+            _enginePausedByAppLifecycle &&
+            !gameState.isPaused &&
+            !gameState.isGameOver &&
+            !gameState.isVictory;
+        _pausedByAppLifecycle = false;
+        _resumeAfterAppLifecycle = false;
+        _enginePausedByAppLifecycle = false;
+        if (shouldResume && paused) {
+          overlays.remove('Countdown');
+          _countdownResumeAuthorized = false;
+          _awaitingResumeConfirmation = true;
+          _showResumePromptDeferred();
+          if (!overlays.isActive('ResumePrompt')) {
+            overlays.add('ResumePrompt');
+          }
+        } else {
+          _resumePromptToken++;
+          BgmManager.revokeGameplayRestore();
+        }
+        break;
+      case AppLifecycleState.detached:
+        _appLifecycleActive = false;
+        _joystickDirection = Vector2.zero();
+        _awaitingResumeConfirmation = false;
+        _countdownResumeAuthorized = false;
+        _resumePromptToken++;
+        BgmManager.revokeGameplayRestore();
+        overlays.remove('ResumePrompt');
+        overlays.remove('Countdown');
+        _pausedByAppLifecycle = true;
+        _resumeAfterAppLifecycle = false;
+        _enginePausedByAppLifecycle = !paused;
+        if (!paused) {
+          pauseEngine();
+        }
+        break;
+    }
+  }
+
+  void resumeGameplayIfAllowed({
+    String reason = 'unknown',
+    bool consumeCountdownAuthorization = false,
+  }) {
+    if (!_appLifecycleActive || _pausedByAppLifecycle || _awaitingResumeConfirmation) {
+      debugPrint(
+        '[APP] blocked resume from $reason appActive=$_appLifecycleActive lifecyclePaused=$_pausedByAppLifecycle awaitingConfirm=$_awaitingResumeConfirmation',
+      );
+      return;
+    }
+
+    if (consumeCountdownAuthorization && !_consumeCountdownResumeAuthorization()) {
+      debugPrint('[APP] blocked resume from $reason because countdown authorization was missing');
+      return;
+    }
+
+    if (paused) {
+      resumeEngine();
+    }
+    BgmManager.authorizeGameplayRestore();
+    unawaited(BgmManager.ensureRequestedTrackPlaying());
+  }
+
+  void confirmLifecycleResume() {
+    if (!_awaitingResumeConfirmation) {
+      return;
+    }
+    _resumePromptToken++;
+    _awaitingResumeConfirmation = false;
+    overlays.remove('ResumePrompt');
+    overlays.remove('Countdown');
+    _countdownResumeAuthorized = true;
+    overlays.add('Countdown');
+  }
+
+  void cancelLifecycleResume({bool returnToLobby = false}) {
+    _awaitingResumeConfirmation = false;
+    _countdownResumeAuthorized = false;
+    _resumePromptToken++;
+    BgmManager.revokeGameplayRestore();
+    overlays.remove('ResumePrompt');
+    overlays.remove('Countdown');
+    if (returnToLobby) {
+      this.returnToLobby();
+    }
+  }
+
+  bool _consumeCountdownResumeAuthorization() {
+    if (!_countdownResumeAuthorized) {
+      return false;
+    }
+    _countdownResumeAuthorized = false;
+    return true;
+  }
+
+  void _showResumePromptDeferred() {
+    final token = ++_resumePromptToken;
+    unawaited(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      if (_resumePromptToken != token) {
+        return;
+      }
+      if (!_appLifecycleActive ||
+          !_awaitingResumeConfirmation ||
+          gameState.isPaused ||
+          gameState.isGameOver ||
+          gameState.isVictory) {
+        return;
+      }
+      if (!overlays.isActive('ResumePrompt')) {
+        overlays.add('ResumePrompt');
+      }
+    }());
+  }
+
+  bool canSpawnTransientEffect() {
+    final canSpawn = _activeTransientEffects < _maxTransientEffects;
+    if (!canSpawn) {
+      _effectBudgetSkips++;
+    }
+    return canSpawn;
+  }
+
+  int _countTransientWorldEffects() {
+    return _activeTransientEffects;
+  }
+
+  void debugLogState(String reason) {
+    if (!kDebugMode) {
+      return;
+    }
+    debugPrint(
+      '[PERF][$reason] enemies=${activeEnemies.length} '
+      'projectiles=${activeProjectiles.length} '
+      'effects=${_countTransientWorldEffects()} '
+      'world=${world.children.length} '
+      'bgmCurrent=${BgmManager.currentTrack} '
+      'bgmRequested=${BgmManager.requestedTrack} '
+      'bgmFaulted=${BgmManager.audioFaulted} '
+      'pendingSfx=${SfxManager.pendingRequests} '
+      'sfxFailures=${SfxManager.failureCount} '
+      'sfxSuppressed=${SfxManager.gameplaySuppressed} '
+      'sfxFaulted=${SfxManager.audioFaulted} '
+      'skipped=$_effectBudgetSkips',
+    );
+  }
+
+  Future<void> _ensureStaticWorld() async {
+    if (_staticWorldInitialized) {
+      return;
+    }
+
+    final background = RectangleComponent(
+      size: mapSize,
+      paint: Paint()..color = const Color(0xFF1A1A2E),
+      priority: -10,
+    );
+    _addStaticWorldComponent(background);
+    await _addGridPattern();
+    await _addObstacles();
+    _staticWorldInitialized = true;
+  }
+
+  void _addStaticWorldComponent(Component component) {
+    _staticWorldComponents.add(component);
+    world.add(component);
+  }
+
+  void _clearDynamicWorld() {
+    _removeActiveCompanionVisual();
+    final dynamicWorldChildren = world.children
+        .where((child) => !_staticWorldComponents.contains(child))
+        .toList();
+    if (dynamicWorldChildren.isNotEmpty) {
+      world.removeAll(dynamicWorldChildren);
+    }
+
+    final runtimeChildren = children
+        .where((child) => child is EnemySpawner || child is TimerComponent)
+        .toList();
+    if (runtimeChildren.isNotEmpty) {
+      removeAll(runtimeChildren);
+    }
+
+    activeEnemies.clear();
+    activeProjectiles.clear();
+    _activeSkillTextCount = 0;
+    _shootSoundCooldown = 0;
+    _effectBudgetSkips = 0;
+    _activeTransientEffects = 0;
+    SfxManager.resetGameplaySession();
+    debugLogState('clear_dynamic_world');
+  }
+
+  void _removeActiveCompanionVisual() {
+    _activeCompanionVisual?.removeFromParent();
+    _activeCompanionVisual = null;
+    _activeCompanionLifetime = 0;
+  }
+
+  void addTimedWorldComponent(
+    PositionComponent component, {
+    required double lifetime,
+    bool countsAsTransient = true,
+  }) {
+    if (countsAsTransient) {
+      if (!canSpawnTransientEffect()) {
+        return;
+      }
+      _activeTransientEffects++;
+    }
+    component.add(
+      TimerComponent(
+        period: lifetime,
+        removeOnFinish: true,
+        onTick: () {
+          if (countsAsTransient && _activeTransientEffects > 0) {
+            _activeTransientEffects--;
+          }
+          component.removeFromParent();
+        },
+      ),
+    );
+    world.add(component);
   }
 
   /// 바닥 타일 추가
@@ -151,7 +558,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
       for (double x = 0; x < mapSize.x; x += tileSize) {
         for (double y = 0; y < mapSize.y; y += tileSize) {
-          world.add(
+          _addStaticWorldComponent(
             SpriteComponent(
               sprite: Sprite(bgSprite),
               position: Vector2(x, y),
@@ -183,7 +590,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
           anchor: Anchor.center,
           priority: -5,
         );
-        world.add(obstacle);
+        _addStaticWorldComponent(obstacle);
       }
     } catch (e) {
       debugPrint('Error loading obstacle: $e');
@@ -224,7 +631,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       final angle = startAngle + (i * spreadAngle);
       final dir = baseDir.clone()..rotate(angle);
 
-      world.add(
+      spawnProjectile(
         Projectile(
           position: p.position.clone(),
           direction: dir,
@@ -282,7 +689,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 300,
       damageRatio: 1.0,
       radius: 12,
-      emoji: '🛡️',
+      emoji: attackProjectileEmoji(AttackType.wave),
       isSplash: true,
       splashRadius: 30,
       lifetime: 0.4, // 근거리 파동망
@@ -297,7 +704,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 250,
       damageRatio: 1.0,
       radius: 10,
-      emoji: '💡',
+      emoji: attackProjectileEmoji(AttackType.homing),
       isSplash: true,
       splashRadius: 30,
     );
@@ -311,7 +718,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 180,
       damageRatio: 1.0,
       radius: 10,
-      emoji: '🌸',
+      emoji: attackProjectileEmoji(AttackType.summon),
       lifetime: 2.0, // 원거리 투사체
     );
   }
@@ -324,7 +731,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 350,
       damageRatio: 1.0,
       radius: 10,
-      emoji: '🔧',
+      emoji: attackProjectileEmoji(AttackType.straight),
       lifetime: 2.5, // 긴 사거리
     );
   }
@@ -337,59 +744,24 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 200,
       damageRatio: 1.0,
       radius: 12,
-      emoji: '🚩',
+      emoji: attackProjectileEmoji(AttackType.aura),
       lifetime: 1.0, // 중거리 오라
     );
   }
 
   /// INTJ: 순간이동 슬래시 - 가장 가까운 적 위치로 순간이동 후 범위 공격
   void _attackBlink(Player attackingPlayer, List<BaseEnemy> enemies) {
-    if (enemies.isEmpty) return; // 적 없으면 패스
-    final closest = _findClosestEnemy(attackingPlayer.position, enemies);
-    if (closest == null) return;
-
-    final dist = attackingPlayer.position.distanceTo(closest.position);
-    if (dist > 200) {
-      // 멀리 있으면 청사진 투척 📜
-      _fireMultiProjectiles(
-        p: attackingPlayer,
-        enemies: enemies,
-        speed: 320,
-        damageRatio: 1.0,
-        radius: 10,
-        emoji: '📜',
-      );
-    } else {
-      // 가까이 있으면 범위 공격 (처형 보너스)
-      final hpRatio = closest.currentHp / closest.maxHp;
-      final executeDmg = attackingPlayer.attackPower * (0.5 + (1 - hpRatio));
-      _dealDamageInRadius(attackingPlayer.position, 50, executeDmg);
-
-      // 멀티샷 비례 추가 딜 및 범위 증가 효과
-      if (attackingPlayer.multiShotCount > 1) {
-        _dealDamageInRadius(
-          attackingPlayer.position,
-          50 + (10.0 * attackingPlayer.multiShotCount),
-          attackingPlayer.attackPower * 0.2 * attackingPlayer.multiShotCount,
-        );
-      }
-
-      // 단검 슬래시 이펙트 🗡️
-      final slash = TextComponent(
-        text: '🗡️',
-        position: closest.position.clone()..add(Vector2(-10, -20)),
-        anchor: Anchor.center,
-        textRenderer: TextPaint(style: TextStyle(fontSize: 40)),
-      );
-      slash.add(
-        TimerComponent(
-          period: 0.2,
-          removeOnFinish: true,
-          onTick: () => slash.removeFromParent(),
-        ),
-      );
-      world.add(slash);
-    }
+    _fireMultiProjectiles(
+      p: attackingPlayer,
+      enemies: enemies,
+      speed: 320,
+      damageRatio: 1.0,
+      radius: 10,
+      emoji: attackProjectileEmoji(AttackType.blink),
+      isSplash: true,
+      splashRadius: 36,
+      lifetime: 2.8,
+    );
   }
 
   /// ESFP: 빠른 연타 - 마이크 음파 🎤
@@ -401,7 +773,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 280,
       damageRatio: 0.7,
       radius: 10,
-      emoji: '🎤',
+      emoji: attackProjectileEmoji(AttackType.rapid),
     );
   }
 
@@ -413,7 +785,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 200,
       damageRatio: 1.0,
       radius: 12,
-      emoji: '🍲',
+      emoji: attackProjectileEmoji(AttackType.shield),
     );
 
     // 20% + 멀티샷 비례 확률로 약간 회복
@@ -440,6 +812,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void _dealDamageInRadius(Vector2 center, double radius, double damage) {
+    final activeEnemies = List<BaseEnemy>.from(this.activeEnemies);
     for (final enemy in activeEnemies) {  // [성능] 캐시 사용
       if (center.distanceTo(enemy.position) <= radius + enemy.radius) {
         enemy.takeDamage(damage);
@@ -449,7 +822,9 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
   void showSkillText(String text, Color color, Vector2 pos) {
     // [성능] 동시 스킬 텍스트 최대 5개로 제한
-    if (_activeSkillTextCount >= _maxSkillTextCount) return;
+    if (_activeSkillTextCount >= _maxSkillTextCount || !canSpawnTransientEffect()) {
+      return;
+    }
     _activeSkillTextCount++;
 
     final textComp = TextComponent(
@@ -473,11 +848,14 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         removeOnFinish: true,
         onTick: () {
           _activeSkillTextCount--;
+          if (_activeTransientEffects > 0) {
+            _activeTransientEffects--;
+          }
           textComp.removeFromParent();
         },
       ),
     );
-
+    _activeTransientEffects++;
     world.add(textComp);
   }
 
@@ -523,27 +901,19 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       attackingPlayer.characterData.color,
       attackingPlayer.position,
     );
-    FlameAudio.play('sfx_ultimate.ogg');
+    playThrottledSfx('sfx_ultimate.ogg', volume: 0.7, minInterval: 0.12);
   }
 
   /// ESTJ 필살기: "철벽 방어" - 전신 보호막 🛡️ + 범위 데미지
   void _ultWave(Player p) {
-    _dealDamageInRadius(p.position, 225, p.attackPower * 4.5);
-    final bigWave = CircleComponent(
-      radius: 225,
+    _dealDamageInRadius(p.position, 180, p.attackPower * 4.0);
+    final balancedWave = CircleComponent(
+      radius: 180,
       position: p.position.clone(),
       anchor: Anchor.center,
       paint: Paint()..color = p.characterData.color.withValues(alpha: 0.4),
     );
-    bigWave.add(
-      TimerComponent(
-        period: 0.75,
-        removeOnFinish: true,
-        onTick: () => bigWave.removeFromParent(),
-      ),
-    );
-    world.add(bigWave);
-    // 4.5초 무적 + 전신 보호막 🛡️ 이펙트
+    addTimedWorldComponent(balancedWave, lifetime: 0.65);
     p.isInvincible = true;
     final shieldVisual = TextComponent(
       text: '🛡️',
@@ -552,10 +922,9 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       textRenderer: TextPaint(style: TextStyle(fontSize: 30)),
     );
     p.add(shieldVisual);
-
     add(
       TimerComponent(
-        period: 4.5,
+        period: 3.5,
         removeOnFinish: true,
         onTick: () {
           p.isInvincible = false;
@@ -563,91 +932,149 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         },
       ),
     );
+    _addPulseRingEffect(
+      center: p.position,
+      radius: 180,
+      color: p.characterData.color,
+      lifetime: 0.65,
+    );
+    _addRadialEmojiEffect(
+      center: p.position,
+      emojis: const ['🛡️', '💥', '🛡️', '💥'],
+      radius: 115,
+      fontSize: 28,
+      color: p.characterData.color,
+      lifetime: 0.65,
+    );
   }
 
   /// ENTP 필살기: "브레인스토밍 폭발" - 광역 폭발 💥
   void _ultHoming(Player p) {
-    for (int i = 0; i < 12; i++) {
-      final angle = i * pi / 6;
+    for (int i = 0; i < 8; i++) {
+      final angle = i * pi / 4;
       final dir = Vector2(cos(angle), sin(angle));
       final offset = dir * 30.0;
-      world.add(
+      spawnProjectile(
         Projectile(
           position: p.position.clone()..add(offset),
           direction: dir,
-          speed: 300,
-          damage: p.attackPower * 3,
+          speed: 320,
+          damage: p.attackPower * 2.4,
           color: p.characterData.color,
-          radius: 22.5,
-          emoji: '💥',
+          radius: 20,
+          emoji: '💡',
           isSplash: true,
+          splashRadius: 55,
         ),
       );
     }
+    _addPulseRingEffect(
+      center: p.position,
+      radius: 120,
+      color: p.characterData.color,
+      lifetime: 0.55,
+      alpha: 0.28,
+    );
+    _addRadialEmojiEffect(
+      center: p.position,
+      emojis: const ['💡', '⚡', '💡', '⚡', '💡', '⚡', '💡', '⚡'],
+      radius: 95,
+      fontSize: 24,
+      color: p.characterData.color,
+      lifetime: 0.55,
+    );
   }
 
   /// INFP 필살기: "힐링 서클" - 장판형 회복 🌿
   void _ultSummon(Player p) {
-    p.heal(p.maxHp * 0.6);
+    p.heal(p.maxHp * 0.45);
     p.isInvincible = true;
 
-    final circle = CircleComponent(
-      radius: 120,
+    final sanctuary = CircleComponent(
+      radius: 140,
       position: p.position.clone(),
       anchor: Anchor.center,
       paint: Paint()..color = const Color(0xFF4CAF50).withValues(alpha: 0.3),
     );
-    circle.add(
+    sanctuary.add(
       TextComponent(
         text: '🌿',
-        position: Vector2(120, 120),
+        position: Vector2(140, 140),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 40)),
       ),
     );
-    world.add(circle);
-
+    addTimedWorldComponent(sanctuary, lifetime: 3.5);
     add(
       TimerComponent(
-        period: 4.5,
+        period: 3.5,
         removeOnFinish: true,
         onTick: () {
           p.isInvincible = false;
-          circle.removeFromParent();
+          sanctuary.removeFromParent();
         },
       ),
+    );
+    _addPulseRingEffect(
+      center: p.position,
+      radius: 140,
+      color: const Color(0xFF6DDC8B),
+      lifetime: 0.8,
+      alpha: 0.30,
+    );
+    _addRadialEmojiEffect(
+      center: p.position,
+      emojis: const ['🌿', '💚', '🌿', '💚', '🌿', '💚'],
+      radius: 90,
+      fontSize: 26,
+      color: const Color(0xFF6DDC8B),
+      lifetime: 0.8,
     );
   }
 
   /// ISTP 필살기: "기계 장치 폭발" - 부품 파편 ⚙️
   void _ultStraight(Player p) {
-    var dir = _joystickDirection.clone();
-    if (dir == Vector2.zero()) dir = Vector2(1, 0);
-    dir.normalize();
-    world.add(
+    var burstDir = _joystickDirection.clone();
+    if (burstDir == Vector2.zero()) burstDir = Vector2(1, 0);
+    burstDir.normalize();
+    spawnProjectile(
       Projectile(
         position: p.position.clone(),
-        direction: dir,
+        direction: burstDir,
         speed: 500,
-        damage: p.attackPower * 7.5,
+        damage: p.attackPower * 6.0,
         color: p.characterData.color,
-        radius: 30,
-        emoji: '⚙️',
+        radius: 24,
+        emoji: '🎯',
         isSplash: true,
-        splashRadius: 90,
+        splashRadius: 75,
       ),
+    );
+    _addPulseRingEffect(
+      center: p.position,
+      radius: 95,
+      color: p.characterData.color,
+      lifetime: 0.45,
+      alpha: 0.28,
+    );
+    _addRadialEmojiEffect(
+      center: p.position,
+      emojis: const ['⚙️', '🎯', '⚙️', '🎯'],
+      radius: 70,
+      fontSize: 24,
+      color: p.characterData.color,
+      lifetime: 0.45,
     );
   }
 
   /// ENFJ 필살기: "사기 진작 오라" - 황금빛 왕관 ✨
   void _ultAura(Player p) {
     final originalAtk = p.attackPower;
-    p.attackPower *= 3; // 2 -> 3 (1.5x effectiveness)
-
-    _dealDamageInRadius(p.position, 180, p.attackPower * 1.5);
+    p.attackPower *= 2;
+    _dealDamageInRadius(p.position, 160, p.attackPower * 1.8);
 
     final auraEffect = CircleComponent(
-      radius: 180,
+      radius: 160,
       position: p.position.clone(),
       anchor: Anchor.center,
       paint: Paint()..color = const Color(0xFFFFD700).withValues(alpha: 0.25),
@@ -655,90 +1082,118 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     auraEffect.add(
       TextComponent(
         text: '✨',
-        position: Vector2(180, 60),
+        position: Vector2(160, 60),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 50)),
       ),
     );
     auraEffect.add(
       TimerComponent(
-        period: 7.5,
+        period: 5.0,
         removeOnFinish: true,
-        onTick: () {
-          auraEffect.removeFromParent();
-          p.attackPower = originalAtk;
-        },
+        onTick: () => p.attackPower = originalAtk,
       ),
     );
-    world.add(auraEffect);
+    addTimedWorldComponent(auraEffect, lifetime: 5.0);
+    _addRadialEmojiEffect(
+      center: p.position,
+      emojis: const ['✨', '📣', '✨', '📣', '✨', '📣'],
+      radius: 110,
+      fontSize: 26,
+      color: const Color(0xFFFFD54F),
+      lifetime: 0.8,
+    );
   }
 
   /// INTJ 필살기: "단검 기습" - 날카로운 일격 🗡️ (맵 전체)
   void _ultBlink(Player p) {
-    final allEnemies = world.children.whereType<BaseEnemy>().toList();
-    for (final enemy in allEnemies) {
-      enemy.takeDamage(p.attackPower * 3);
-    }
-    // 전체 맵 플래시 이펙트
-    final flash = RectangleComponent(
-      position: Vector2.zero(),
-      size: mapSize,
-      paint: Paint()..color = const Color(0xFF00BCD4).withValues(alpha: 0.3),
+    final closest = _findClosestEnemy(p.position, activeEnemies);
+    final burstCenter = closest?.position.clone() ?? p.position.clone();
+    _dealDamageInRadius(burstCenter, 170, p.attackPower * 4.0);
+
+    final flash = CircleComponent(
+      radius: 170,
+      position: burstCenter,
+      anchor: Anchor.center,
+      paint: Paint()..color = const Color(0xFF00BCD4).withValues(alpha: 0.32),
       priority: 100,
     );
     flash.add(
       TextComponent(
         text: '🗡️',
-        position: mapSize / 2,
+        position: Vector2(170, 120),
         anchor: Anchor.center,
-        textRenderer: TextPaint(style: TextStyle(fontSize: 100)),
+        textRenderer: TextPaint(style: TextStyle(fontSize: 72)),
       ),
     );
-    flash.add(
-      TimerComponent(
-        period: 0.75,
-        removeOnFinish: true,
-        onTick: () => flash.removeFromParent(),
-      ),
+    addTimedWorldComponent(flash, lifetime: 0.7);
+    _addPulseRingEffect(
+      center: burstCenter,
+      radius: 170,
+      color: p.characterData.color,
+      lifetime: 0.7,
+      alpha: 0.42,
+      strokeWidth: 6,
     );
-    world.add(flash);
+    _addRadialEmojiEffect(
+      center: burstCenter,
+      emojis: const ['📄', '🗡️', '📄', '🗡️', '📄', '🗡️'],
+      radius: 105,
+      fontSize: 28,
+      color: p.characterData.color,
+      lifetime: 0.7,
+    );
   }
 
   /// ESFP 필살기: "스포트라이트 집중 조명" - 🔦 연사
   void _ultRapid(Player p) {
-    // 즉시 24방향 발사
-    for (int i = 0; i < 24; i++) {
-      final angle = i * pi / 12;
-      world.add(
+    for (int i = 0; i < 16; i++) {
+      final angle = i * pi / 8;
+      spawnProjectile(
         Projectile(
           position: p.position.clone(),
           direction: Vector2(cos(angle), sin(angle)),
           speed: 250,
-          damage: p.attackPower * 2.25,
+          damage: p.attackPower * 1.8,
           color: p.characterData.color,
-          radius: 18,
-          emoji: '🔦',
+          radius: 16,
+          emoji: '🎤',
         ),
       );
     }
-    // 4.5초간 공격속도 대폭 증가
-    p.reduceAttackInterval(0.45);
+    p.reduceAttackInterval(0.25);
     add(
       TimerComponent(
-        period: 4.5,
+        period: 3.0,
         removeOnFinish: true,
-        onTick: () => p.reduceAttackInterval(-0.45),
+        onTick: () => p.reduceAttackInterval(-0.25),
       ),
+    );
+    _addPulseRingEffect(
+      center: p.position,
+      radius: 125,
+      color: p.characterData.color,
+      lifetime: 0.55,
+      alpha: 0.3,
+    );
+    _addRadialEmojiEffect(
+      center: p.position,
+      emojis: const ['🎤', '✨', '🎤', '✨', '🎤', '✨'],
+      radius: 88,
+      fontSize: 24,
+      color: p.characterData.color,
+      lifetime: 0.55,
     );
   }
 
   /// ISFJ 필살기: "안전 제일 보호막" - 반투명 장벽 🟢
   void _ultShield(Player p) {
     p.isInvincible = true;
-    p.heal(p.maxHp * 0.45);
+    p.heal(p.maxHp * 0.35);
+    _dealDamageInRadius(p.position, 110, p.attackPower * 2.0);
 
     final shieldEffect = CircleComponent(
-      radius: 60,
+      radius: 90,
       position: p.position.clone(),
       anchor: Anchor.center,
       paint: Paint()..color = const Color(0xFF4CAF50).withValues(alpha: 0.35),
@@ -746,23 +1201,34 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     shieldEffect.add(
       TextComponent(
         text: '🟢',
-        position: Vector2(60, -15),
+        position: Vector2(90, -15),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 24)),
       ),
     );
-
     shieldEffect.add(
       TimerComponent(
-        period: 7.5,
+        period: 4.5,
         removeOnFinish: true,
-        onTick: () {
-          shieldEffect.removeFromParent();
-          p.isInvincible = false;
-        },
+        onTick: () => p.isInvincible = false,
       ),
     );
-    world.add(shieldEffect);
+    addTimedWorldComponent(shieldEffect, lifetime: 4.5);
+    _addPulseRingEffect(
+      center: p.position,
+      radius: 110,
+      color: const Color(0xFF66BB6A),
+      lifetime: 0.75,
+      alpha: 0.32,
+    );
+    _addRadialEmojiEffect(
+      center: p.position,
+      emojis: const ['🛡️', '💚', '🛡️', '💚'],
+      radius: 74,
+      fontSize: 24,
+      color: const Color(0xFF66BB6A),
+      lifetime: 0.75,
+    );
   }
 
   // ══════════════════════════════════════════
@@ -781,12 +1247,18 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       companionData.color,
       player.position,
     );
-    FlameAudio.play('sfx_assist.ogg', volume: 0.6);
+    playThrottledSfx('sfx_assist.ogg', volume: 0.6, minInterval: 0.15);
+    _removeActiveCompanionVisual();
 
     // 동료 등장 이펙트 (실제 스프라이트 애니메이션)
     final companionPos = player.position.clone()..add(Vector2(0, -50));
     final spriteSheet = images.fromCache(companionData.assetPath);
     final companionWidth = spriteSheet.width / 4;
+    final companionVisual = PositionComponent(
+      position: companionPos,
+      anchor: Anchor.center,
+      priority: 15,
+    );
 
     final companion = SpriteAnimationComponent(
       animation: SpriteAnimation.fromFrameData(
@@ -798,15 +1270,14 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         ),
       ),
       size: Vector2(64, 64),
-      position: companionPos,
+      position: Vector2.zero(),
       anchor: Anchor.center,
-      priority: 15,
     );
 
     // 동료 MBTI 텍스트
     final companionLabel = TextComponent(
       text: companionData.mbti,
-      position: companionPos.clone()..add(Vector2(0, -30)),
+      position: Vector2(0, -30),
       anchor: Anchor.center,
       textRenderer: TextPaint(
         style: TextStyle(
@@ -818,8 +1289,15 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       ),
     );
 
-    world.add(companion);
-    world.add(companionLabel);
+    companionVisual.add(companion);
+    companionVisual.add(companionLabel);
+    _activeCompanionVisual = companionVisual;
+    _activeCompanionLifetime = 2.0;
+    addTimedWorldComponent(
+      companionVisual,
+      lifetime: 2.0,
+      countsAsTransient: false,
+    );
 
     // 동료 필살기 실행 (배율 적용)
     _performCompanionUltimate(companionData, companionPos, multiplier);
@@ -830,16 +1308,6 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     }
 
     // 2초 후 동료 퇴장
-    add(
-      TimerComponent(
-        period: 2.0,
-        removeOnFinish: true,
-        onTick: () {
-          companion.removeFromParent();
-          companionLabel.removeFromParent();
-        },
-      ),
-    );
   }
 
   void _performCompanionUltimate(
@@ -849,6 +1317,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   ) {
     final baseDmg = data.attack * multiplier * 3; // 기본 공격력 * 배율 * 3
 
+    final activeEnemies = List<BaseEnemy>.from(this.activeEnemies);
     switch (data.attackType) {
       case AttackType.wave:
         _dealDamageInRadius(pos, 120, baseDmg);
@@ -857,7 +1326,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       case AttackType.homing:
         for (int i = 0; i < 6; i++) {
           final angle = i * pi / 3;
-          world.add(
+          spawnProjectile(
             Projectile(
               position: pos.clone(),
               direction: Vector2(cos(angle), sin(angle)),
@@ -876,7 +1345,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         break;
       case AttackType.straight:
         // 누커 동료: 대형 관통탄
-        world.add(
+        spawnProjectile(
           Projectile(
             position: pos.clone(),
             direction: Vector2(1, 0),
@@ -902,16 +1371,24 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         );
         break;
       case AttackType.blink:
-        // 암살자 동료: 전체 적 데미지
-        for (final enemy in activeEnemies) {  // [성능] 캐시 사용
-          enemy.takeDamage(baseDmg);
+        if (activeEnemies.isNotEmpty) {
+          _dealDamageInRadius(pos, 150, baseDmg * 1.2);
+          _addExplosionEffect(pos, 150, data.color);
+          _addRadialEmojiEffect(
+            center: pos,
+            emojis: const ['⚔️', '🗡️', '⚔️', '🗡️'],
+            radius: 84,
+            fontSize: 22,
+            color: data.color,
+            lifetime: 0.45,
+          );
         }
         break;
       case AttackType.rapid:
         // 파이터 동료: 12방향 연사
         for (int i = 0; i < 12; i++) {
           final angle = i * pi / 6;
-          world.add(
+          spawnProjectile(
             Projectile(
               position: pos.clone(),
               direction: Vector2(cos(angle), sin(angle)),
@@ -940,35 +1417,93 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void _addExplosionEffect(Vector2 pos, double radius, Color color) {
+    if (!canSpawnTransientEffect()) {
+      return;
+    }
     final effect = CircleComponent(
       radius: radius,
       position: pos.clone(),
       anchor: Anchor.center,
-      paint: Paint()..color = color.withValues(alpha: 0.3),
+      paint: Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4
+        ..color = color.withValues(alpha: 0.45),
     );
-    effect.add(
-      TimerComponent(
-        period: 0.5,
-        removeOnFinish: true,
-        onTick: () => effect.removeFromParent(),
-      ),
+    addTimedWorldComponent(effect, lifetime: 0.5);
+    _addRadialEmojiEffect(
+      center: pos,
+      emojis: const ['💥', '✨', '💥', '✨'],
+      radius: radius * 0.65,
+      fontSize: max(22, radius * 0.35),
+      color: color,
+      lifetime: 0.45,
     );
-    world.add(effect);
+  }
+
+  void _addRadialEmojiEffect({
+    required Vector2 center,
+    required List<String> emojis,
+    required double radius,
+    required double fontSize,
+    required Color color,
+    double lifetime = 0.6,
+  }) {
+    if (emojis.isEmpty) {
+      return;
+    }
+    final cappedCount =
+        activeEnemies.length >= 12 ||
+            activeProjectiles.length >= 12 ||
+            world.children.length >= 60
+        ? min(2, emojis.length)
+        : emojis.length;
+    for (var i = 0; i < cappedCount; i++) {
+      final angle = (pi * 2 / cappedCount) * i;
+      final offset = Vector2(cos(angle), sin(angle)) * radius;
+      final glyph = TextComponent(
+        text: emojis[i],
+        position: center + offset,
+        anchor: Anchor.center,
+        priority: 110,
+        textRenderer: TextPaint(
+          style: TextStyle(
+            fontSize: fontSize,
+            color: color,
+            shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+          ),
+        ),
+      );
+      addTimedWorldComponent(glyph, lifetime: lifetime);
+    }
+  }
+
+  void _addPulseRingEffect({
+    required Vector2 center,
+    required double radius,
+    required Color color,
+    double lifetime = 0.6,
+    double alpha = 0.35,
+    double strokeWidth = 5,
+  }) {
+    if (!canSpawnTransientEffect()) {
+      return;
+    }
+    final ring = CircleComponent(
+      radius: radius,
+      position: center.clone(),
+      anchor: Anchor.center,
+      priority: 105,
+      paint: Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..color = color.withValues(alpha: alpha),
+    );
+    addTimedWorldComponent(ring, lifetime: lifetime);
   }
 
   // ══════════════════════════════════════════
   // ═══ 게임 이벤트 ═══
   // ══════════════════════════════════════════
-  /// 적이 스폰될 때 호출 (EnemySpawner/BaseEnemy에서 호출)
-  void registerEnemy(BaseEnemy enemy) {
-    activeEnemies.add(enemy);
-  }
-
-  /// 적이 죽거나 제거될 때 호출 (BaseEnemy에서 호출)
-  void unregisterEnemy(BaseEnemy enemy) {
-    activeEnemies.remove(enemy);
-  }
-
   void onEnemyKilled(BaseEnemy enemy) {
     unregisterEnemy(enemy);
     enemySpawner.onEnemyKilled();
@@ -992,6 +1527,10 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void onAllWavesCleared() {
+    _awaitingResumeConfirmation = false;
+    _countdownResumeAuthorized = false;
+    _resumePromptToken++;
+    BgmManager.revokeGameplayRestore();
     gameState.victory();
     saveManager?.deleteSave(); // 클리어 시 세이브 삭제
     overlays.add('Victory');
@@ -999,32 +1538,60 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void onPlayerDeath() {
-    FlameAudio.bgm.stop();
-    FlameAudio.bgm.play('bgm_gameover.mp3', volume: 0.4);
-    FlameAudio.play('sfx_player_die.ogg');
+    _removeActiveCompanionVisual();
+    _awaitingResumeConfirmation = false;
+    _countdownResumeAuthorized = false;
+    _resumePromptToken++;
+    BgmManager.revokeGameplayRestore();
+    setBgmTrack(BgmTrack.gameOver, forceRestart: true);
+    playThrottledSfx('sfx_player_die.ogg', volume: 1.0, minInterval: 0.8);
     gameState.gameOver();
     saveManager?.deleteSave(); // 사망 시 세이브 삭제
     overlays.add('GameOver');
     pauseEngine();
+    debugLogState('player_death');
   }
 
-  void restartGame() {
+  Future<void> restartGame() async {
+    _awaitingResumeConfirmation = false;
+    _countdownResumeAuthorized = false;
+    _resumePromptToken++;
+    BgmManager.revokeGameplayRestore();
+    overlays.remove('ResumePrompt');
+    overlays.remove('Countdown');
     overlays.remove('GameOver');
     overlays.remove('Victory');
-    world.removeAll(world.children);
-    removeAll(children.whereType<EnemySpawner>());
-    activeEnemies.clear(); // [성능] 캐시 정리
-    _activeSkillTextCount = 0;
+    _clearDynamicWorld();
     gameState.reset();
-    FlameAudio.bgm.stop();
-    FlameAudio.bgm.play('bgm_battle.mp3', volume: 0.25);
-    resumeEngine();
-    onLoad();
+    unawaited(setBgmTrack(BgmTrack.battle, forceRestart: true));
+
+    final characterData = MbtiCharacters.getByType(gameState.selectedCharacter);
+    player = Player(characterData: characterData);
+    player.position = mapSize / 2;
+    world.add(player);
+    camera.follow(player, snap: true);
+
+    gameState.initHp(characterData.maxHp);
+    gameState.initUltCooldown(characterData.ultCooldown);
+    gameState.initAssistCooldown();
+
+    enemySpawner = EnemySpawner();
+    add(enemySpawner);
+    enemySpawner.startWave(0);
+
+    debugLogState('restart_game');
+    resumeGameplayIfAllowed(reason: 'restart_game');
   }
 
   /// 현재 웨이브에서 동일 캐릭터/강화레벨로 재시작
   /// ⚠️ onLoad()를 호출하면 안 됨! (gameState.reset()으로 모든 강화가 날아감)
   void restartFromCurrentWave() async {
+    _awaitingResumeConfirmation = false;
+    _countdownResumeAuthorized = false;
+    _resumePromptToken++;
+    BgmManager.revokeGameplayRestore();
+    overlays.remove('ResumePrompt');
+    overlays.remove('Countdown');
     final currentWave = gameState.currentWave - 1; // 0-indexed
 
     // 현재(사망 시점) 스탯 백업 (인게임 아이템 획득 및 커피 강화분 유지)
@@ -1047,20 +1614,12 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
     overlays.remove('GameOver');
     overlays.remove('Victory');
-    world.removeAll(world.children);
-    removeAll(children.whereType<EnemySpawner>());
-    activeEnemies.clear(); // [성능] 캐시 정리
-    _activeSkillTextCount = 0;
+    _clearDynamicWorld();
+    unawaited(setBgmTrack(BgmTrack.battle, forceRestart: true));
+    debugLogState('restart_from_current_wave');
 
     // ── 맵 재구성 (onLoad의 맵 부분만 수동 실행) ──
-    final background = RectangleComponent(
-      size: mapSize,
-      paint: Paint()..color = const Color(0xFF1A1A2E),
-      priority: -10,
-    );
-    world.add(background);
-    await _addGridPattern();
-    await _addObstacles();
+    await _ensureStaticWorld();
 
     // ── 플레이어 재생성 (백업 스탯 주입) ──
     final characterData = MbtiCharacters.getByType(gameState.selectedCharacter);
@@ -1089,7 +1648,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       '[REVIVE] gameState maxHp=${gameState.maxHp}, currentHp=${gameState.currentHp}',
     );
 
-    resumeEngine();
+    resumeGameplayIfAllowed(reason: 'restart_from_current_wave');
 
     // ── 적 스포너 재시작 ──
     enemySpawner = EnemySpawner();
@@ -1105,6 +1664,12 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   void returnToLobby() {
+    _awaitingResumeConfirmation = false;
+    _countdownResumeAuthorized = false;
+    _resumePromptToken++;
+    BgmManager.revokeGameplayRestore();
+    overlays.remove('ResumePrompt');
+    overlays.remove('Countdown');
     autoSave(); // 로비로 돌아가기 전에 현재 상태 저장
     pauseEngine();
     onReturnToLobby?.call();

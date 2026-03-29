@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/ad_manager.dart';
+import '../services/audio_bootstrap.dart';
+import '../services/bgm_manager.dart';
 import '../services/save_manager.dart';
+import '../services/sfx_manager.dart';
 import '../services/unlock_manager.dart';
 import '../main.dart';
-import 'package:flame_audio/flame_audio.dart';
 
 class SplashScreen extends StatefulWidget {
   final UnlockManager unlockManager;
@@ -26,6 +28,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _controller;
   late Animation<double> _animation;
+  bool _lobbyBgmRequested = false;
   bool _canStart = false; // 3초 뒤에 게임 시작 가능 여부
 
   @override
@@ -38,17 +41,11 @@ class _SplashScreenState extends State<SplashScreen>
     )..repeat(reverse: true);
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
 
-    // 오디오 캐싱 및 로비 BGM 재생
-    FlameAudio.audioCache.loadAll([
-      'sfx_shoot.ogg', 'sfx_player_hit.ogg', 'sfx_player_die.ogg',
-      'sfx_ultimate.ogg', 'sfx_assist.ogg', 'sfx_enemy_spawn.ogg',
-      'sfx_enemy_hit.ogg', 'sfx_enemy_die.ogg', 'sfx_boss_warning.ogg',
-      'sfx_boss_attack.ogg', 'sfx_coin.ogg', 'sfx_powerup.ogg',
-      'sfx_heal.ogg', 'sfx_wave_clear.ogg', 'sfx_button.ogg',
-      'bgm_battle.mp3', 'bgm_boss.mp3', 'bgm_gameover.mp3', 'bgm_lobby.mp3'
-    ]).then((_) {
-      if (mounted) {
-        FlameAudio.bgm.play('bgm_lobby.mp3', volume: 0.25);
+    // 앱 시작 시 오디오 부트스트랩은 한 번만 수행한다.
+    AudioBootstrap.ensureInitialized().then((_) async {
+      if (mounted && BgmManager.isAppActive) {
+        _lobbyBgmRequested = true;
+        await BgmManager.setTrack(BgmTrack.lobby);
       }
     });
 
@@ -72,24 +69,20 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    switch (state) {
-      case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.hidden:
-        FlameAudio.bgm.pause();
-        break;
-      case AppLifecycleState.resumed:
-        FlameAudio.bgm.resume();
-        break;
-      case AppLifecycleState.detached:
-        break;
+    BgmManager.handleLifecycleChange(state);
+    SfxManager.handleLifecycleChange(state);
+    if (state == AppLifecycleState.resumed &&
+        _lobbyBgmRequested &&
+        !BgmManager.isRecovering &&
+        BgmManager.requestedTrack != BgmTrack.lobby) {
+      BgmManager.setTrack(BgmTrack.lobby);
     }
   }
 
   void _onTap() {
     if (!_canStart) return; // 3초 전에는 탭해도 아무 일도 안 일어남
     
-    FlameAudio.play('sfx_button.ogg', volume: 0.5);
+    SfxManager.playUi('sfx_button.ogg', volume: 0.5);
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(

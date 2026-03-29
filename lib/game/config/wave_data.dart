@@ -45,7 +45,18 @@ class WaveData {
       final isFinalBoss = i == 30;
 
       // 총 적 수: Wave 1=30, Wave 2=36, Wave 3=42 ... (+6씩)
-      final totalEnemies = 30 + 6 * (i - 1);
+      var totalEnemies = 30 + 6 * (i - 1);
+      if (i >= 5) {
+        totalEnemies -= ((i - 4) * 2).clamp(0, 12);
+      }
+      if (isMbtiBossWave) {
+        totalEnemies -= 6;
+      } else if (isBossWave) {
+        totalEnemies -= 4;
+      }
+      if (totalEnemies < 24) {
+        totalEnemies = 24;
+      }
 
       final enemies = <EnemyType, int>{};
 

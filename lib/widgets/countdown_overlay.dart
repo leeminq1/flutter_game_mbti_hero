@@ -37,24 +37,65 @@ class _CountdownOverlayState extends State<CountdownOverlay>
 
   Future<void> _startCountdown() async {
     for (int i = 3; i > 0; i--) {
+      await _waitUntilAppActive();
+      if (!mounted) {
+        return;
+      }
+
       if (mounted) {
         setState(() => _count = i);
         _controller.forward(from: 0.0);
       }
-      await Future.delayed(const Duration(seconds: 1));
+      await _delayRespectingLifecycle(const Duration(seconds: 1));
+    }
+
+    await _waitUntilAppActive();
+    if (!mounted) {
+      return;
     }
 
     if (mounted) {
       setState(() => _count = 0); // 0 = START
       _controller.forward(from: 0.0);
     }
-    await Future.delayed(const Duration(milliseconds: 800));
+    await _delayRespectingLifecycle(const Duration(milliseconds: 800));
 
     if (mounted) {
+      if (widget.game.isAwaitingResumeConfirmation) {
+        widget.game.overlays.remove('Countdown');
+        return;
+      }
       if (widget.game.paused) {
-        widget.game.resumeEngine(); // 게임 재개 (몬스터, 캐릭터 동작 시작)
+        widget.game.resumeGameplayIfAllowed(
+          reason: 'countdown_overlay',
+          consumeCountdownAuthorization: true,
+        );
       }
       widget.game.overlays.remove('Countdown');
+    }
+  }
+
+  Future<void> _waitUntilAppActive() async {
+    while (mounted &&
+        (!widget.game.isAppLifecycleActive ||
+            widget.game.isAwaitingResumeConfirmation)) {
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+  }
+
+  Future<void> _delayRespectingLifecycle(Duration duration) async {
+    var remaining = duration;
+    const slice = Duration(milliseconds: 100);
+
+    while (mounted && remaining > Duration.zero) {
+      await _waitUntilAppActive();
+      if (!mounted) {
+        return;
+      }
+
+      final current = remaining > slice ? slice : remaining;
+      await Future.delayed(current);
+      remaining -= current;
     }
   }
 

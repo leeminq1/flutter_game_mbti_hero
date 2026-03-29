@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flame 2D Game"
+  short_description: "Build performant Flame games with centralized audio"
+  default_prompt: "Design or refactor this Flutter Flame 2D game with performance-first gameplay architecture, centralized BGM and SFX management, stable component lifecycles, and clean Flutter overlay integration."

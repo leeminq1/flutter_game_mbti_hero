@@ -4,7 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../config/character_data.dart';
 import '../mbti_game.dart';
-import 'package:flame_audio/flame_audio.dart';
+import '../../services/sfx_manager.dart';
 
 /// 플레이어 컴포넌트
 class Player extends SpriteAnimationComponent
@@ -26,6 +26,9 @@ class Player extends SpriteAnimationComponent
   // 데미지 무적 (피격 후 잠시 무적)
   double _damageInvincibleTimer = 0;
   static const double _damageInvincibleDuration = 0.5;
+  int _lastDamageFlashBucket = -1;
+  static const int _damageFlashBuckets = 12;
+  late final List<Color> _damageFlashColors;
 
   // 랜덤 대사 타이머
   double _quoteTimer = 0;
@@ -98,6 +101,12 @@ class Player extends SpriteAnimationComponent
     if (restoredMultiShot != null) {
       multiShotCount = restoredMultiShot!;
     }
+    _damageFlashColors = List<Color>.generate(
+      _damageFlashBuckets + 1,
+      (index) => characterData.color.withAlpha(
+        ((index / _damageFlashBuckets) * 255).round().clamp(0, 255).toInt(),
+      ),
+    );
 
     // 히트박스 추가 (캐릭터 크기보다 약간 작게)
     add(
@@ -153,11 +162,21 @@ class Player extends SpriteAnimationComponent
     if (_damageInvincibleTimer > 0) {
       _damageInvincibleTimer -= dt;
       // 깜빡임 효과
-      paint.color = characterData.color.withValues(
-        alpha: (sin(_damageInvincibleTimer * 20) * 0.5 + 0.5),
-      );
+      final alpha =
+          (sin(_damageInvincibleTimer * 20) * 0.5 + 0.5).clamp(0.0, 1.0);
+      final bucket = (alpha * _damageFlashBuckets).round().clamp(
+        0,
+        _damageFlashBuckets,
+      ).toInt();
+      if (bucket != _lastDamageFlashBucket) {
+        paint.color = _damageFlashColors[bucket];
+        _lastDamageFlashBucket = bucket;
+      }
     } else {
-      paint.color = characterData.color;
+      if (_lastDamageFlashBucket != _damageFlashBuckets) {
+        paint.color = characterData.color;
+        _lastDamageFlashBucket = _damageFlashBuckets;
+      }
     }
 
     // 랜덤 대사 타이머
@@ -184,7 +203,7 @@ class Player extends SpriteAnimationComponent
 
   /// 자동 공격 (캐릭터 타입별로 다름)
   void _autoAttack() {
-    FlameAudio.play('sfx_shoot.ogg', volume: 0.3);
+    game.tryPlayShootSfx();
     game.performAutoAttack(this);
   }
 
@@ -201,7 +220,10 @@ class Player extends SpriteAnimationComponent
     if (isInvincible || _damageInvincibleTimer > 0) return;
 
     currentHp = (currentHp - damage).clamp(0, maxHp);
-    FlameAudio.play('sfx_player_hit.ogg');
+    game.playThrottledSfx(
+      'sfx_player_hit.ogg',
+      minInterval: 0.08,
+    );
     game.gameState.takeDamage(damage);
     _damageInvincibleTimer = _damageInvincibleDuration;
 
@@ -213,7 +235,11 @@ class Player extends SpriteAnimationComponent
   /// 회복
   void heal(double amount) {
     currentHp = (currentHp + amount).clamp(0, maxHp);
-    FlameAudio.play('sfx_heal.ogg', volume: 0.6);
+    SfxManager.playUi(
+      'sfx_heal.ogg',
+      volume: 0.15,
+      minInterval: 0.22,
+    );
     game.gameState.heal(amount);
   }
 

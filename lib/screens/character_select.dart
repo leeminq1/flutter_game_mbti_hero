@@ -1,9 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../game/config/character_data.dart';
 import '../game/config/mbti_compatibility.dart';
 import '../services/save_manager.dart';
+import '../services/sfx_manager.dart';
 import 'leaderboard_screen.dart';
-import 'package:flame_audio/flame_audio.dart';
 
 /// 캐릭터 선택 화면 (캐릭터 → 동료 선택 2단계)
 class CharacterSelectScreen extends StatefulWidget {
@@ -25,6 +27,38 @@ class CharacterSelectScreen extends StatefulWidget {
 
   @override
   State<CharacterSelectScreen> createState() => _CharacterSelectScreenState();
+}
+
+class CharacterSelectLayoutSpec {
+  const CharacterSelectLayoutSpec._();
+
+  static const double maxContentWidth = 980;
+  static const double horizontalPadding = 16;
+  static const double crossAxisSpacing = 8;
+  static const double mainAxisSpacing = 8;
+  static const double minCardWidth = 130;
+
+  static int calculateColumns(double width) {
+    final usableWidth = math.max<double>(
+      0.0,
+      math.min(width, maxContentWidth) - (horizontalPadding * 2),
+    );
+    final columns =
+        ((usableWidth + crossAxisSpacing) / (minCardWidth + crossAxisSpacing))
+            .floor();
+    return columns.clamp(3, 6).toInt();
+  }
+
+  static SliverGridDelegate createGridDelegate(double width) {
+    final columns = calculateColumns(width);
+    final aspectRatio = width >= 700 ? 0.72 : 0.65;
+    return SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: columns,
+      childAspectRatio: aspectRatio,
+      crossAxisSpacing: crossAxisSpacing,
+      mainAxisSpacing: mainAxisSpacing,
+    );
+  }
 }
 
 class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
@@ -113,7 +147,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
   }) {
     return GestureDetector(
       onTap: () {
-        FlameAudio.play('sfx_button.ogg', volume: 0.5);
+        SfxManager.playUi('sfx_button.ogg', volume: 0.5);
         onTap();
       },
       child: Column(
@@ -147,10 +181,41 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A1A),
       body: SafeArea(
-        child: _selectedCharacter == null
-            ? _buildCharacterSelectView()
-            : _buildCompanionSelectView(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final contentWidth = math.min(
+              constraints.maxWidth,
+              CharacterSelectLayoutSpec.maxContentWidth,
+            );
+            return Center(
+              child: SizedBox(
+                width: contentWidth,
+                child: _selectedCharacter == null
+                    ? _buildCharacterSelectView()
+                    : _buildCompanionSelectView(),
+              ),
+            );
+          },
+        ),
       ),
+    );
+  }
+
+  Widget _buildResponsiveGrid({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gridDelegate = CharacterSelectLayoutSpec.createGridDelegate(
+          constraints.maxWidth,
+        );
+        return GridView.builder(
+          gridDelegate: gridDelegate,
+          itemCount: itemCount,
+          itemBuilder: itemBuilder,
+        );
+      },
     );
   }
 
@@ -190,7 +255,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: GestureDetector(
         onTap: () {
-          FlameAudio.play('sfx_button.ogg', volume: 0.5);
+          SfxManager.playUi('sfx_button.ogg', volume: 0.5);
           widget.onContinue?.call(saveData);
         },
         child: Container(
@@ -454,13 +519,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.65,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
+            child: _buildResponsiveGrid(
               itemCount: MbtiCharacters.all.length,
               itemBuilder: (context, index) {
                 // 해금된 캐릭터가 먼저 오도록 정렬
@@ -592,13 +651,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.65,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
+            child: _buildResponsiveGrid(
               itemCount: MbtiCharacters.all
                   .where((c) => c.type != _selectedCharacter)
                   .length,
@@ -631,7 +684,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
       onExit: (_) => setState(() => _hoveredType = null),
       child: GestureDetector(
         onTap: () {
-          FlameAudio.play('sfx_button.ogg', volume: 0.5);
+          SfxManager.playUi('sfx_button.ogg', volume: 0.5);
           if (isUnlocked) {
             if (isCompanion) {
               // 동료 선택 시 onSelect 호출을 _handleNewGame으로 래핑
