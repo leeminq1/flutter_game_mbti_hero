@@ -1,78 +1,145 @@
-import os
-import io
+import argparse
+from collections import deque
+from pathlib import Path
+
 from PIL import Image
-from rembg import remove
-import numpy as np
 
-def crop_sprites(img):
-    # Convert to RGBA numpy array
-    np_img = np.array(img)
-    alpha = np_img[:, :, 3]
-    
-    # Find active pixels
-    y_idx, x_idx = np.where(alpha > 0)
-    
-    if len(y_idx) == 0 or len(x_idx) == 0:
-        return img # Empty image
-        
-    ymin, ymax = y_idx.min(), y_idx.max()
-    xmin, xmax = x_idx.min(), x_idx.max()
-    
-    # Crop to content
-    cropped = img.crop((xmin, ymin, xmax, ymax))
-    
-    # In these AI generated images for game assets, they usually have 4 frames side-by-side or a grid.
-    # For now, let's just make sure the cropped size is a power of 2 or fits nicely 
-    # without returning a huge 2816x1536 canvas
-    return cropped
 
-def process_image(filepath, output_path):
-    print(f"Processing: {filepath}")
-    try:
-        # Load image
-        with open(filepath, 'rb') as i:
-            input_bytes = i.read()
-            
-        # Remove background using rembg
-        print("  Removing background...")
-        output_bytes = remove(input_bytes)
-        img = Image.open(io.BytesIO(output_bytes)).convert("RGBA")
-        
-        # Crop tight around the sprites
-        print("  Cropping bounds...")
-        img_cropped = crop_sprites(img)
-        
-        # Resize if still too large (e.g., limit height to something reasonable like 256 for sprites)
-        MAX_HEIGHT = 256
-        w, h = img_cropped.size
-        # if h > MAX_HEIGHT:
-        #     ratio = MAX_HEIGHT / float(h)
-        #     new_w = int(float(w) * ratio)
-        #     img_cropped = img_cropped.resize((new_w, MAX_HEIGHT), Image.Resampling.LANCZOS)
-            
-        print(f"  Final size: {img_cropped.size}")
-        
-        # Save output
-        img_cropped.save(output_path, 'PNG')
-        print(f"  Saved to: {output_path}")
-        
-    except Exception as e:
-        print(f"Error processing {filepath}: {e}")
+ROOT_DIR = Path(r"C:\Users\min21\Desktop\flutter_grame\flutter_game\assets\images")
+DEFAULT_FOLDERS = ("characters", "enemies")
+SUPPORTED_EXTENSIONS = {".png"}
+
+
+def is_dark(pixel, threshold=14):
+    r, g, b, a = pixel
+    return a > 0 and r <= threshold and g <= threshold and b <= threshold
+
+
+def is_light(pixel, threshold=245):
+    r, g, b, a = pixel
+    return a > 0 and r >= threshold and g >= threshold and b >= threshold
+
+
+def remove_edge_background(img):
+    rgba = img.convert("RGBA")
+    width, height = rgba.size
+    pixels = rgba.load()
+    visited = [[False] * width for _ in range(height)]
+    queue = deque()
+
+    def enqueue(x, y):
+        if visited[y][x]:
+            return
+        pixel = pixels[x, y]
+        if is_dark(pixel) or is_light(pixel):
+            visited[y][x] = True
+            queue.append((x, y, "dark" if is_dark(pixel) else "light"))
+
+    for x in range(width):
+        enqueue(x, 0)
+        enqueue(x, height - 1)
+    for y in range(height):
+        enqueue(0, y)
+        enqueue(width - 1, y)
+
+    while queue:
+        x, y, bg_type = queue.popleft()
+        pixels[x, y] = (0, 0, 0, 0)
+
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx = x + dx
+            ny = y + dy
+            if nx < 0 or ny < 0 or nx >= width or ny >= height:
+                continue
+            if visited[ny][nx]:
+                continue
+
+            pixel = pixels[nx, ny]
+            matches = is_dark(pixel) if bg_type == "dark" else is_light(pixel)
+            if matches:
+                visited[ny][nx] = True
+                queue.append((nx, ny, bg_type))
+
+    return rgba
+
+
+def crop_to_alpha_bounds(img):
+    alpha = img.getchannel("A")
+    bbox = alpha.getbbox()
+    if bbox is None:
+        return img
+    return img.crop(bbox)
+
+
+def process_image(input_path, output_path):
+    print(f"Processing: {input_path}")
+    image = Image.open(input_path).convert("RGBA")
+    cleaned = remove_edge_background(image)
+    cropped = crop_to_alpha_bounds(cleaned)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    same_parent = input_path.parent == output_path.parent
+    case_only_rename = (
+        same_parent
+        and input_path.name.lower() == output_path.name.lower()
+        and input_path.name != output_path.name
+    )
+
+    if case_only_rename:
+        temp_output = output_path.with_name(f"__processed__{output_path.name}")
+        cropped.save(temp_output, "PNG")
+        input_path.unlink()
+        temp_output.replace(output_path)
+    else:
+        cropped.save(output_path, "PNG")
+
+    print(f"  Saved: {output_path.name} {cropped.size}")
+
+
+def list_target_files(folder_name, explicit_files):
+    folder_path = ROOT_DIR / folder_name
+    if explicit_files:
+        return [folder_path / name for name in explicit_files]
+
+    return sorted(
+        path
+        for path in folder_path.iterdir()
+        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
+    )
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Remove solid edge backgrounds from imported game assets.",
+    )
+    parser.add_argument(
+        "--folder",
+        action="append",
+        choices=DEFAULT_FOLDERS,
+        help="Target asset folder. Defaults to characters and enemies.",
+    )
+    parser.add_argument(
+        "--files",
+        nargs="*",
+        help="Optional list of file names inside the selected folder.",
+    )
+    parser.add_argument(
+        "--rename-lowercase",
+        action="store_true",
+        help="Save processed output using lowercase file names.",
+    )
+    return parser.parse_args()
+
 
 def main():
-    root_dir = r'c:\Users\min21\Desktop\flutter_grame\flutter_game\assets\images'
-    folders = ['characters', 'enemies']
-    
-    for folder in folders:
-        folder_path = os.path.join(root_dir, folder)
-        if not os.path.exists(folder_path): continue
-        
-        for file in os.listdir(folder_path):
-            if file.endswith('.png') and not file.endswith('_processed.png'):
-                in_path = os.path.join(folder_path, file)
-                # Save as same name to overwrite, or append _processed to compare?
-                # Overwriting to apply directly to game.
-                process_image(in_path, in_path)
+    args = parse_args()
+    folders = tuple(args.folder) if args.folder else DEFAULT_FOLDERS
 
-if __name__ == '__main__':
+    for folder_name in folders:
+        for input_path in list_target_files(folder_name, args.files):
+            output_name = input_path.name.lower() if args.rename_lowercase else input_path.name
+            output_path = input_path.with_name(output_name)
+            process_image(input_path, output_path)
+
+
+if __name__ == "__main__":
     main()

@@ -6,16 +6,8 @@ class UnlockManager {
   static const String _prefix = 'character_unlocked_';
 
   // 기본 해금 캐릭터 (전체 해금 — 광고는 다시하기에서만)
-  static const Set<CharacterType> freeCharacters = {
-    CharacterType.estj,
-    CharacterType.entp,
-    CharacterType.infp,
-    CharacterType.isfj,
-    CharacterType.istp,
-    CharacterType.enfj,
-    CharacterType.intj,
-    CharacterType.esfp,
-  };
+  static final Set<CharacterType> freeCharacters =
+      Set<CharacterType>.from(CharacterType.values);
 
   late SharedPreferences _prefs;
   final Set<CharacterType> _unlockedCharacters = {};

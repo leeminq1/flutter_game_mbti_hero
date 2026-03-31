@@ -1,18 +1,35 @@
 import 'dart:ui';
 
-/// 캐릭터 타입 열거형 (8종 MBTI)
-enum CharacterType { estj, entp, infp, istp, enfj, intj, esfp, isfj }
+/// 캐릭터 타입 열거형 (16종 MBTI)
+enum CharacterType {
+  estj,
+  entp,
+  infp,
+  istp,
+  enfj,
+  intj,
+  esfp,
+  isfj,
+  enfp,
+  entj,
+  esfj,
+  estp,
+  infj,
+  intp,
+  isfp,
+  istj,
+}
 
 /// 공격 타입
 enum AttackType {
-  wave, // ESTJ: 주변 파동
-  homing, // ENTP: 유도 투사체 + 스플래시
-  summon, // INFP: 소환수 자동 추적
-  straight, // ISTP: 전방 직선 투사체
-  aura, // ENFJ: 버프 오라 + 일반탄
-  blink, // INTJ: 순간이동 슬래시
-  rapid, // ESFP: 빠른 연타
-  shield, // ISFJ: 보호막 투사체
+  wave, // 주변 파동/근접 범위
+  homing, // 유도 투사체
+  summon, // 소환/창작 계열
+  straight, // 직선 관통/정밀 사격
+  aura, // 오라/지휘 계열
+  blink, // 순간 폭발/전술 타격
+  rapid, // 연타/난사
+  shield, // 보호막/안정성
 }
 
 /// 캐릭터 능력치 데이터
@@ -21,14 +38,14 @@ class CharacterData {
   final String name;
   final String mbti;
   final String title;
-  final String role; // 역할 (탱커, 마법사, 힐러, etc.)
+  final String role;
   final String description;
   final double maxHp;
   final double attack;
   final double speed;
-  final double baseAttackSpeed; // 기본 공격 속도 (간격, 초)
-  final double knockbackPower; // 공격 히트 시 적 밀어내는 힘
-  final int pierceCount; // 관통 가능 횟수
+  final double baseAttackSpeed;
+  final double knockbackPower;
+  final int pierceCount;
   final double ultCooldown;
   final Color color;
   final AttackType attackType;
@@ -36,6 +53,9 @@ class CharacterData {
   final String assetPath;
   final String assistText;
   final String iconEmoji;
+  final String projectileEmoji;
+  final String effectEmoji;
+  final String attackLabel;
   final List<String> idleQuotes;
 
   const CharacterData({
@@ -58,15 +78,17 @@ class CharacterData {
     required this.assetPath,
     required this.assistText,
     required this.iconEmoji,
+    required this.projectileEmoji,
+    required this.effectEmoji,
+    required this.attackLabel,
     required this.idleQuotes,
   });
 }
 
-/// 전체 캐릭터 데이터 정의
 String attackProjectileEmoji(AttackType type) {
   switch (type) {
     case AttackType.wave:
-      return '🛡️';
+      return '📋';
     case AttackType.homing:
       return '💡';
     case AttackType.summon:
@@ -74,7 +96,7 @@ String attackProjectileEmoji(AttackType type) {
     case AttackType.straight:
       return '🔧';
     case AttackType.aura:
-      return '🚩';
+      return '✨';
     case AttackType.blink:
       return '📄';
     case AttackType.rapid:
@@ -84,51 +106,61 @@ String attackProjectileEmoji(AttackType type) {
   }
 }
 
+List<String> characterEffectBurst(CharacterData data, int count) {
+  final seeds = <String>[data.projectileEmoji, data.effectEmoji];
+  return List<String>.generate(count, (index) => seeds[index % seeds.length]);
+}
+
 class MbtiCharacters {
   static const List<CharacterData> all = [
-    // ── 기존 4캐릭터 ──
     CharacterData(
       type: CharacterType.estj,
       name: '칼퇴 부장님',
       mbti: 'ESTJ',
       title: '엄격한 관리자',
       role: '🛡️ 탱커',
-      description: '결재판을 방패처럼 든 부장님.\n높은 체력, 강한 근거리 파동.',
-      maxHp: 110, // 탱커 피통 증가
-      attack: 7, // 광역이므로 약간 낮음
+      description: '결재판을 방패처럼 드는 현장 관리자.\n묵직한 파동으로 주변을 밀어낸다.',
+      maxHp: 110,
+      attack: 7,
       speed: 80,
-      baseAttackSpeed: 1.0, // 1.2 -> 1.1
-      knockbackPower: 120.0, // 강한 넉백
-      pierceCount: 99, // 파동형은 무한 관통
+      baseAttackSpeed: 1.0,
+      knockbackPower: 120,
+      pierceCount: 99,
       ultCooldown: 25,
       color: Color(0xFF4A90D9),
       attackType: AttackType.wave,
       isFreeCharacter: true,
       assetPath: 'characters/estj.png',
-      assistText: '[동료] ESTJ: 내 뒤로 숨게! 철벽 방어!',
+      assistText: '[동료] ESTJ: 내 뒤로! 칼퇴 방벽 전개!',
       iconEmoji: '💼',
-      idleQuotes: ['오늘 야근은 없다.', '다들 집중해!', '결재 서류는 내가 막아주지!'],
+      projectileEmoji: '📋',
+      effectEmoji: '🛡️',
+      attackLabel: '결재 파동',
+      idleQuotes: ['오늘 야근은 없다.', '다들 집중해!', '결재선은 내가 정리하지.'],
     ),
     CharacterData(
       type: CharacterType.entp,
       name: '아이디어 천재',
       mbti: 'ENTP',
       title: '논쟁을 즐기는 변론가',
-      role: '🧙 마법사',
-      description: '확성기와 폭탄을 든 트롤러.\n높은 공격력, 유도 미사일.',
-      maxHp: 90, // 좀 더 버틸 수 있게
-      attack: 8, // 유도탄이므로 9
+      role: '🧠 트릭스터',
+      description: '번뜩이는 아이디어를 유도탄처럼 던진다.\n적을 집요하게 따라붙는 교란형 딜러.',
+      maxHp: 90,
+      attack: 8,
       speed: 85,
-      baseAttackSpeed: 0.9, // 0.8 -> 0.9
-      knockbackPower: 30.0, // 약한 넉백
+      baseAttackSpeed: 0.9,
+      knockbackPower: 30,
       ultCooldown: 20,
       color: Color(0xFF9B59B6),
       attackType: AttackType.homing,
       isFreeCharacter: true,
       assetPath: 'characters/entp.png',
-      assistText: '[동료] ENTP: 다 비켜보라고! 아이디어 폭격!!',
+      assistText: '[동료] ENTP: 다 비켜봐! 아이디어 폭격 간다!',
       iconEmoji: '💣',
-      idleQuotes: ['이게 바로 혁신이지!', '아, 진짜 좋은 아이디어 떠올랐다!', '규칙은 깨라고 있는 거 아니겠어?'],
+      projectileEmoji: '💡',
+      effectEmoji: '🧨',
+      attackLabel: '발상 추적탄',
+      idleQuotes: ['이거 완전 재밌어지겠는데?', '막히면 규칙을 바꾸면 되지!', '좋아, 더 엉뚱하게 가보자.'],
     ),
     CharacterData(
       type: CharacterType.infp,
@@ -136,19 +168,22 @@ class MbtiCharacters {
       mbti: 'INFP',
       title: '열정적인 중재자',
       role: '💚 힐러',
-      description: '침낭을 뒤집어쓴 감성파.\n자가 회복, 소환수 공격.',
+      description: '감정과 상상을 꽃잎처럼 흩뿌린다.\n회복과 소환을 겸하는 안정형 서포터.',
       maxHp: 95,
-      attack: 7, // 최하위지만 힐러니까 유지
+      attack: 7,
       speed: 85,
-      baseAttackSpeed: 0.95, // 1.5 -> 1.15
+      baseAttackSpeed: 0.95,
       ultCooldown: 15,
       color: Color(0xFFE91E8C),
       attackType: AttackType.summon,
       isFreeCharacter: false,
       assetPath: 'characters/infp.png',
-      assistText: '[동료] INFP: 너무 무리하지 마세요.. 힐링 장막!',
+      assistText: '[동료] INFP: 조금 쉬어가요. 힐링 장막!',
       iconEmoji: '💖',
-      idleQuotes: ['잠깐 쉬어가는 건 어때요?', '싸움은 별로 안 좋아하는데...', '조금만 더 힘내볼게요.'],
+      projectileEmoji: '🌸',
+      effectEmoji: '🌿',
+      attackLabel: '감성 소환',
+      idleQuotes: ['잠깐 숨 돌리는 것도 필요해요.', '마음이 다치면 오래 가거든요.', '조용히 끝낼 수 있으면 좋겠네요.'],
     ),
     CharacterData(
       type: CharacterType.istp,
@@ -156,44 +191,48 @@ class MbtiCharacters {
       mbti: 'ISTP',
       title: '만능 재주꾼',
       role: '⚔️ 누커',
-      description: '몽키스패너를 든 작업복 차림.\n극강 공격력, 관통 직선탄.',
+      description: '공구와 감각으로 전장을 꿰뚫는다.\n직선 관통 공격에 특화된 해결사.',
       maxHp: 95,
-      attack: 9, // 1위 (최대 상한 10)
+      attack: 9,
       speed: 90,
-      baseAttackSpeed: 0.85, // 0.6 -> 0.8
-      knockbackPower: 10.0,
-      pierceCount: 3, // 3마리 관통
+      baseAttackSpeed: 0.85,
+      knockbackPower: 10,
+      pierceCount: 3,
       ultCooldown: 30,
       color: Color(0xFFE74C3C),
       attackType: AttackType.straight,
       isFreeCharacter: false,
       assetPath: 'characters/istp.png',
-      assistText: '[동료] ISTP: 퇴근 좀 하자. 기계 철거!',
+      assistText: '[동료] ISTP: 길 비켜. 한 줄로 정리한다.',
       iconEmoji: '🔧',
-      idleQuotes: ['아, 귀찮아.', '이거면 되나?', '빨리 끝내고 집에 가자.'],
+      projectileEmoji: '🔧',
+      effectEmoji: '⚙️',
+      attackLabel: '정비 관통탄',
+      idleQuotes: ['말보다 손이 빠르지.', '복잡하면 뜯어보면 된다.', '빨리 끝내고 집에 가자.'],
     ),
-
-    // ── 신규 4캐릭터 ──
     CharacterData(
       type: CharacterType.enfj,
       name: '팀의 맏형',
       mbti: 'ENFJ',
       title: '정의로운 사회운동가',
       role: '🎯 서포터',
-      description: '동료를 이끄는 카리스마 리더.\n버프 오라, 동료 시너지 UP.',
+      description: '팀 분위기를 끌어올리는 중심축.\n오라와 버프로 아군 흐름을 끌어올린다.',
       maxHp: 100,
       attack: 7,
       speed: 85,
-      baseAttackSpeed: 0.9, // 0.9 -> 1.0
-      knockbackPower: 20.0,
+      baseAttackSpeed: 0.9,
+      knockbackPower: 20,
       ultCooldown: 22,
       color: Color(0xFFFFD700),
       attackType: AttackType.aura,
       isFreeCharacter: false,
       assetPath: 'characters/enfj.png',
-      assistText: '[동료] ENFJ: 다들 힘내자고! 사기 진작 오라!',
+      assistText: '[동료] ENFJ: 다들 힘내자! 리더십 오라!',
       iconEmoji: '✨',
-      idleQuotes: ['우린 할 수 있어!', '서로 돕는 게 팀이지!', '다 같이 이겨내자!'],
+      projectileEmoji: '✨',
+      effectEmoji: '📣',
+      attackLabel: '격려 오라',
+      idleQuotes: ['우린 같이 가야 해!', '분위기는 내가 살릴게!', '서로 챙기면 훨씬 강해져.'],
     ),
     CharacterData(
       type: CharacterType.intj,
@@ -201,21 +240,23 @@ class MbtiCharacters {
       mbti: 'INTJ',
       title: '용의주도한 전략가',
       role: '🗡️ 암살자',
-      description: '냉철한 분석과 전술 사격.\n가까워도 원거리 공격만 유지.',
+      description: '계산된 타이밍에 빈틈을 베어낸다.\n순간 폭발과 약점 타격에 강한 전술형 딜러.',
       maxHp: 90,
-      attack: 8, // 2위급
+      attack: 8,
       speed: 95,
-      baseAttackSpeed: 0.8, // 0.35 -> 0.7
-      knockbackPower: 0.0, // 넉백 없음 (암살자)
+      baseAttackSpeed: 0.8,
       pierceCount: 2,
       ultCooldown: 28,
       color: Color(0xFF00BCD4),
       attackType: AttackType.blink,
       isFreeCharacter: false,
       assetPath: 'characters/intj.png',
-      assistText: '[동료] INTJ: 허점이 보이는군. 약점 찌르기!',
+      assistText: '[동료] INTJ: 허점 확보. 전술 타격 개시.',
       iconEmoji: '🗡️',
-      idleQuotes: ['계획대로 진행 중.', '확률은 99.9%다.', '감정적인 대처는 무의미해.'],
+      projectileEmoji: '📄',
+      effectEmoji: '🗡️',
+      attackLabel: '계획 섬광',
+      idleQuotes: ['계획대로만 가면 된다.', '예상 범위 안이다.', '감정보다 효율이 먼저다.'],
     ),
     CharacterData(
       type: CharacterType.esfp,
@@ -223,21 +264,23 @@ class MbtiCharacters {
       mbti: 'ESFP',
       title: '자유로운 영혼의 연예인',
       role: '💥 파이터',
-      description: '최고 속도의 빠른 연타.\n연속 처치 시 공격력 증가.',
+      description: '무대를 장악하듯 빠르게 몰아친다.\n짧은 템포의 난사와 연타에 특화됐다.',
       maxHp: 90,
-      attack: 7, // 연사가 빠르므로 7
-      speed: 95, // 가장 빠름
-
-      baseAttackSpeed: 0.8, // 0.25 -> 0.6
-      knockbackPower: 5.0,
+      attack: 7,
+      speed: 95,
+      baseAttackSpeed: 0.8,
+      knockbackPower: 5,
       ultCooldown: 18,
       color: Color(0xFFFF9800),
       attackType: AttackType.rapid,
       isFreeCharacter: false,
       assetPath: 'characters/esfp.png',
-      assistText: '[동료] ESFP: 파티 타임!! 스포트라이트 온!',
+      assistText: '[동료] ESFP: 스포트라이트 온! 파티 타임!',
       iconEmoji: '🔥',
-      idleQuotes: ['오늘도 신나게 놀아볼까!', '내가 왔으니 안심해!', '이런 상황도 즐겨야지!'],
+      projectileEmoji: '🎤',
+      effectEmoji: '🎉',
+      attackLabel: '무대 난사',
+      idleQuotes: ['좋아, 이제 분위기 탄다!', '화끈하게 가보자고!', '이길 때도 멋있어야지!'],
     ),
     CharacterData(
       type: CharacterType.isfj,
@@ -245,20 +288,213 @@ class MbtiCharacters {
       mbti: 'ISFJ',
       title: '용감한 수호자',
       role: '🛡️ 수호자',
-      description: '팀을 지키는 든든한 수호자.\n보호막, 피격 시 반격.',
-      maxHp: 110, // 무적에 가까운 수호자
-      attack: 7, // 최하위
+      description: '팀을 지키는 조용한 버팀목.\n보호막과 회복으로 버티는 안정형 캐릭터.',
+      maxHp: 110,
+      attack: 7,
       speed: 80,
-      baseAttackSpeed: 1.0, // 2.0 -> 1.2
-      knockbackPower: 150.0, // 방패 밀치기 특화
+      baseAttackSpeed: 1.0,
+      knockbackPower: 150,
       ultCooldown: 25,
       color: Color(0xFF4CAF50),
       attackType: AttackType.shield,
       isFreeCharacter: false,
       assetPath: 'characters/isfj.png',
-      assistText: '[동료] ISFJ: 안전이 제일이죠! 비상 보호막 전개!',
+      assistText: '[동료] ISFJ: 안전 우선! 보호막 먼저!',
       iconEmoji: '🛡️',
-      idleQuotes: ['제가 지켜드릴게요!', '조심해서 나쁠 건 없죠.', '모두 무사했으면 좋겠어요.'],
+      projectileEmoji: '🛡️',
+      effectEmoji: '💚',
+      attackLabel: '안전 방벽',
+      idleQuotes: ['제가 옆에서 지킬게요.', '무리하지 않는 게 제일 중요해요.', '다 같이 살아남아야 하니까요.'],
+    ),
+    CharacterData(
+      type: CharacterType.enfp,
+      name: '컬러 플래너',
+      mbti: 'ENFP',
+      title: '재기발랄한 활동가',
+      role: '🌈 크리에이터',
+      description: '아이디어를 색채 폭죽처럼 펼친다.\n창작물을 소환해 전장을 휘젓는 감성형 딜러.',
+      maxHp: 92,
+      attack: 7.4,
+      speed: 93,
+      baseAttackSpeed: 0.88,
+      ultCooldown: 19,
+      color: Color(0xFFBA68C8),
+      attackType: AttackType.summon,
+      isFreeCharacter: false,
+      assetPath: 'characters/enfp.png',
+      assistText: '[동료] ENFP: 상상력 풀개방! 컬러 러시!',
+      iconEmoji: '🌈',
+      projectileEmoji: '🖌️',
+      effectEmoji: '🎨',
+      attackLabel: '스케치 소환',
+      idleQuotes: ['새 아이디어 하나 떠올랐어!', '틀에 갇히면 재미없잖아?', '색감 좋다. 오늘 느낌 왔어!'],
+    ),
+    CharacterData(
+      type: CharacterType.entj,
+      name: '작전 총괄',
+      mbti: 'ENTJ',
+      title: '대담한 통솔자',
+      role: '👑 지휘관',
+      description: '지휘봉과 태블릿으로 흐름을 장악한다.\n강한 오라와 전술 압박으로 판을 굴린다.',
+      maxHp: 104,
+      attack: 8.2,
+      speed: 90,
+      baseAttackSpeed: 0.9,
+      knockbackPower: 24,
+      ultCooldown: 23,
+      color: Color(0xFF8E244D),
+      attackType: AttackType.aura,
+      isFreeCharacter: false,
+      assetPath: 'characters/entj.png',
+      assistText: '[동료] ENTJ: 전열 정비! 지휘권은 내가 잡는다!',
+      iconEmoji: '👑',
+      projectileEmoji: '📍',
+      effectEmoji: '📊',
+      attackLabel: '지휘 압박',
+      idleQuotes: ['판은 내가 짠다.', '우왕좌왕할 시간 없다.', '이길 방법부터 정리하지.'],
+    ),
+    CharacterData(
+      type: CharacterType.esfj,
+      name: '복지 담당',
+      mbti: 'ESFJ',
+      title: '사교적인 외교관',
+      role: '☕ 케어러',
+      description: '간식 바구니와 커피로 팀을 살핀다.\n보호와 유지력에 강한 생활형 서포터.',
+      maxHp: 106,
+      attack: 6.8,
+      speed: 82,
+      baseAttackSpeed: 0.98,
+      knockbackPower: 110,
+      ultCooldown: 24,
+      color: Color(0xFFC9A35C),
+      attackType: AttackType.shield,
+      isFreeCharacter: false,
+      assetPath: 'characters/esfj.png',
+      assistText: '[동료] ESFJ: 일단 챙겨! 회복 물자 투입!',
+      iconEmoji: '🧺',
+      projectileEmoji: '☕',
+      effectEmoji: '🎖️',
+      attackLabel: '케어 바리어',
+      idleQuotes: ['다들 밥은 먹었죠?', '분위기 흔들리면 먼저 챙겨야 해요.', '혼자 버티지 말고 말해요.'],
+    ),
+    CharacterData(
+      type: CharacterType.estp,
+      name: '현장 쇼맨',
+      mbti: 'ESTP',
+      title: '대담한 사업가',
+      role: '⚡ 돌격수',
+      description: '메가폰으로 흐름을 흔들며 정면 돌파한다.\n넉백이 강한 파동형 브루저.',
+      maxHp: 98,
+      attack: 8.0,
+      speed: 94,
+      baseAttackSpeed: 0.84,
+      knockbackPower: 95,
+      pierceCount: 99,
+      ultCooldown: 19,
+      color: Color(0xFFFFB300),
+      attackType: AttackType.wave,
+      isFreeCharacter: false,
+      assetPath: 'characters/estp.png',
+      assistText: '[동료] ESTP: 비켜! 현장은 내가 뚫는다!',
+      iconEmoji: '🏆',
+      projectileEmoji: '📣',
+      effectEmoji: '⚡',
+      attackLabel: '쇼크 웨이브',
+      idleQuotes: ['생각보다 몸이 먼저 나가야 할 때가 있지.', '지금이 타이밍이네.', '판 커졌네, 재밌다!'],
+    ),
+    CharacterData(
+      type: CharacterType.infj,
+      name: '통찰 멘토',
+      mbti: 'INFJ',
+      title: '선의의 옹호자',
+      role: '🔮 오라클',
+      description: '수정구와 기록으로 흐름을 꿰뚫는다.\n직감형 유도탄으로 위험 지점을 먼저 지운다.',
+      maxHp: 92,
+      attack: 8.1,
+      speed: 88,
+      baseAttackSpeed: 0.92,
+      ultCooldown: 24,
+      color: Color(0xFFCE93D8),
+      attackType: AttackType.homing,
+      isFreeCharacter: false,
+      assetPath: 'characters/infj.png',
+      assistText: '[동료] INFJ: 흐름이 보여. 통찰 구체 발사.',
+      iconEmoji: '📚',
+      projectileEmoji: '🔮',
+      effectEmoji: '✨',
+      attackLabel: '예지 추적탄',
+      idleQuotes: ['겉으론 조용해도 다 보이거든요.', '조금만 더 가면 흐름이 바뀌어요.', '누가 흔들리는지 먼저 챙겨야 해요.'],
+    ),
+    CharacterData(
+      type: CharacterType.intp,
+      name: '로직 엔지니어',
+      mbti: 'INTP',
+      title: '호기심 많은 사색가',
+      role: '💻 분석 딜러',
+      description: '노트북과 실험 정신으로 전장을 계산한다.\n정밀 직선 공격과 관통에 특화된 논리형 딜러.',
+      maxHp: 88,
+      attack: 8.5,
+      speed: 92,
+      baseAttackSpeed: 0.86,
+      pierceCount: 2,
+      ultCooldown: 26,
+      color: Color(0xFFA94442),
+      attackType: AttackType.straight,
+      isFreeCharacter: false,
+      assetPath: 'characters/intp.png',
+      assistText: '[동료] INTP: 계산 끝. 관통 경로 고정.',
+      iconEmoji: '🧠',
+      projectileEmoji: '💻',
+      effectEmoji: '📐',
+      attackLabel: '로직 관통탄',
+      idleQuotes: ['잠깐, 이건 더 효율적인 방법이 있어.', '흥미롭네. 데이터가 쌓이고 있어.', '결론만 맞으면 과정은 다듬으면 된다.'],
+    ),
+    CharacterData(
+      type: CharacterType.isfp,
+      name: '감각 조형가',
+      mbti: 'ISFP',
+      title: '호기심 많은 예술가',
+      role: '🎨 아티스트',
+      description: '팔레트와 조각상으로 감각적인 환영을 만든다.\n부드러운 소환형 압박에 특화된 감성 캐릭터.',
+      maxHp: 96,
+      attack: 7.2,
+      speed: 90,
+      baseAttackSpeed: 0.9,
+      ultCooldown: 18,
+      color: Color(0xFF26A69A),
+      attackType: AttackType.summon,
+      isFreeCharacter: false,
+      assetPath: 'characters/isfp.png',
+      assistText: '[동료] ISFP: 감각을 따라가. 조형 환영 전개.',
+      iconEmoji: '🗿',
+      projectileEmoji: '🎨',
+      effectEmoji: '🌿',
+      attackLabel: '아트 소환',
+      idleQuotes: ['말보단 느낌이 먼저 와요.', '색이 맞으면 흐름도 따라와요.', '조용해도, 표현은 확실하게 할 수 있어요.'],
+    ),
+    CharacterData(
+      type: CharacterType.istj,
+      name: '정산 실무관',
+      mbti: 'ISTJ',
+      title: '청렴결백한 논리주의자',
+      role: '📚 관리자',
+      description: '장부와 계산기로 실수를 지운다.\n튼튼한 방어와 안정적인 운영에 강한 버팀목.',
+      maxHp: 108,
+      attack: 7.1,
+      speed: 78,
+      baseAttackSpeed: 1.02,
+      knockbackPower: 135,
+      ultCooldown: 26,
+      color: Color(0xFF4F8CA8),
+      attackType: AttackType.shield,
+      isFreeCharacter: false,
+      assetPath: 'characters/istj.png',
+      assistText: '[동료] ISTJ: 장부 확인 끝. 오차 없이 막는다.',
+      iconEmoji: '📘',
+      projectileEmoji: '🧮',
+      effectEmoji: '📎',
+      attackLabel: '정산 방벽',
+      idleQuotes: ['기본이 무너지면 다 무너져요.', '체크리스트부터 확인하죠.', '정리된 흐름이 제일 강합니다.'],
     ),
   ];
 

@@ -110,7 +110,13 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
     // 플레이어 생성
     final characterData = MbtiCharacters.getByType(gameState.selectedCharacter);
-    player = Player(characterData: characterData);
+    player = Player(
+      characterData: characterData,
+      restoredHp: loadedSave?.hp,
+      restoredMaxHp: loadedSave?.maxHp,
+      restoredSpeed: loadedSave?.speed,
+      restoredAttack: loadedSave?.attackPower,
+    );
     player.position = mapSize / 2; // 맵 중앙에서 시작
     world.add(player);
 
@@ -135,11 +141,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     // 세이브 데이터 복원
     if (loadedSave != null) {
       gameState.setWave(loadedSave!.wave);
-      gameState.initHp(loadedSave!.maxHp);
-      gameState.heal(loadedSave!.hp - loadedSave!.maxHp); // 현재 HP 설정
-      gameState.takeDamage(loadedSave!.maxHp - loadedSave!.hp); // 실제 HP로
-      player.attackPower = loadedSave!.attackPower;
-      player.speed = loadedSave!.speed;
+      gameState.syncHp(current: loadedSave!.hp, max: loadedSave!.maxHp);
       // 해당 웨이브부터 시작
       enemySpawner.startWave(loadedSave!.wave - 1);
     } else {
@@ -419,6 +421,29 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     return true;
   }
 
+  void startCountdownResume({String reason = 'unknown'}) {
+    if (!_appLifecycleActive ||
+        _pausedByAppLifecycle ||
+        _awaitingResumeConfirmation ||
+        gameState.isGameOver ||
+        gameState.isVictory) {
+      debugPrint(
+        '[APP] blocked countdown resume from $reason '
+        'appActive=$_appLifecycleActive lifecyclePaused=$_pausedByAppLifecycle '
+        'awaitingConfirm=$_awaitingResumeConfirmation gameOver=${gameState.isGameOver} '
+        'victory=${gameState.isVictory}',
+      );
+      return;
+    }
+
+    _resumePromptToken++;
+    _countdownResumeAuthorized = true;
+    overlays.remove('ResumePrompt');
+    overlays.remove('Countdown');
+    pauseEngine();
+    overlays.add('Countdown');
+  }
+
   void _showResumePromptDeferred() {
     final token = ++_resumePromptToken;
     unawaited(() async {
@@ -603,7 +628,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   // ══════════════════════════════════════════
-  // ═══ 자동 공격 (8종) ═══
+  // ═══ 자동 공격 패턴 ═══
   // ══════════════════════════════════════════
   /// 플레이어 자동 공격 공통 헬퍼 (다중 발사 지원)
   void _fireMultiProjectiles({
@@ -689,7 +714,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 300,
       damageRatio: 1.0,
       radius: 12,
-      emoji: attackProjectileEmoji(AttackType.wave),
+      emoji: p.characterData.projectileEmoji,
       isSplash: true,
       splashRadius: 30,
       lifetime: 0.4, // 근거리 파동망
@@ -704,7 +729,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 250,
       damageRatio: 1.0,
       radius: 10,
-      emoji: attackProjectileEmoji(AttackType.homing),
+      emoji: p.characterData.projectileEmoji,
       isSplash: true,
       splashRadius: 30,
     );
@@ -718,7 +743,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 180,
       damageRatio: 1.0,
       radius: 10,
-      emoji: attackProjectileEmoji(AttackType.summon),
+      emoji: p.characterData.projectileEmoji,
       lifetime: 2.0, // 원거리 투사체
     );
   }
@@ -731,7 +756,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 350,
       damageRatio: 1.0,
       radius: 10,
-      emoji: attackProjectileEmoji(AttackType.straight),
+      emoji: p.characterData.projectileEmoji,
       lifetime: 2.5, // 긴 사거리
     );
   }
@@ -744,7 +769,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 200,
       damageRatio: 1.0,
       radius: 12,
-      emoji: attackProjectileEmoji(AttackType.aura),
+      emoji: p.characterData.projectileEmoji,
       lifetime: 1.0, // 중거리 오라
     );
   }
@@ -757,7 +782,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 320,
       damageRatio: 1.0,
       radius: 10,
-      emoji: attackProjectileEmoji(AttackType.blink),
+      emoji: attackingPlayer.characterData.projectileEmoji,
       isSplash: true,
       splashRadius: 36,
       lifetime: 2.8,
@@ -773,7 +798,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 280,
       damageRatio: 0.7,
       radius: 10,
-      emoji: attackProjectileEmoji(AttackType.rapid),
+      emoji: p.characterData.projectileEmoji,
     );
   }
 
@@ -785,7 +810,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       speed: 200,
       damageRatio: 1.0,
       radius: 12,
-      emoji: attackProjectileEmoji(AttackType.shield),
+      emoji: p.characterData.projectileEmoji,
     );
 
     // 20% + 멀티샷 비례 확률로 약간 회복
@@ -860,7 +885,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   // ══════════════════════════════════════════
-  // ═══ 필살기 (8종) ═══
+  // ═══ 필살기 패턴 ═══
   // ══════════════════════════════════════════
   void performUltimate(Player attackingPlayer) {
     // 필살기 효과 발동 (기존 스위치문 대체 -> 내부 함수는 여전히 호출)
@@ -916,7 +941,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     addTimedWorldComponent(balancedWave, lifetime: 0.65);
     p.isInvincible = true;
     final shieldVisual = TextComponent(
-      text: '🛡️',
+      text: p.characterData.effectEmoji,
       position: Vector2(p.size.x / 2, -20),
       anchor: Anchor.center,
       textRenderer: TextPaint(style: TextStyle(fontSize: 30)),
@@ -940,7 +965,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     _addRadialEmojiEffect(
       center: p.position,
-      emojis: const ['🛡️', '💥', '🛡️', '💥'],
+      emojis: characterEffectBurst(p.characterData, 4),
       radius: 115,
       fontSize: 28,
       color: p.characterData.color,
@@ -962,7 +987,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
           damage: p.attackPower * 2.4,
           color: p.characterData.color,
           radius: 20,
-          emoji: '💡',
+          emoji: p.characterData.projectileEmoji,
           isSplash: true,
           splashRadius: 55,
         ),
@@ -977,7 +1002,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     _addRadialEmojiEffect(
       center: p.position,
-      emojis: const ['💡', '⚡', '💡', '⚡', '💡', '⚡', '💡', '⚡'],
+      emojis: characterEffectBurst(p.characterData, 8),
       radius: 95,
       fontSize: 24,
       color: p.characterData.color,
@@ -998,7 +1023,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     sanctuary.add(
       TextComponent(
-        text: '🌿',
+        text: p.characterData.effectEmoji,
         position: Vector2(140, 140),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 40)),
@@ -1024,7 +1049,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     _addRadialEmojiEffect(
       center: p.position,
-      emojis: const ['🌿', '💚', '🌿', '💚', '🌿', '💚'],
+      emojis: characterEffectBurst(p.characterData, 6),
       radius: 90,
       fontSize: 26,
       color: const Color(0xFF6DDC8B),
@@ -1045,7 +1070,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         damage: p.attackPower * 6.0,
         color: p.characterData.color,
         radius: 24,
-        emoji: '🎯',
+        emoji: p.characterData.projectileEmoji,
         isSplash: true,
         splashRadius: 75,
       ),
@@ -1059,7 +1084,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     _addRadialEmojiEffect(
       center: p.position,
-      emojis: const ['⚙️', '🎯', '⚙️', '🎯'],
+      emojis: characterEffectBurst(p.characterData, 4),
       radius: 70,
       fontSize: 24,
       color: p.characterData.color,
@@ -1081,7 +1106,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     auraEffect.add(
       TextComponent(
-        text: '✨',
+        text: p.characterData.effectEmoji,
         position: Vector2(160, 60),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 50)),
@@ -1097,7 +1122,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     addTimedWorldComponent(auraEffect, lifetime: 5.0);
     _addRadialEmojiEffect(
       center: p.position,
-      emojis: const ['✨', '📣', '✨', '📣', '✨', '📣'],
+      emojis: characterEffectBurst(p.characterData, 6),
       radius: 110,
       fontSize: 26,
       color: const Color(0xFFFFD54F),
@@ -1120,7 +1145,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     flash.add(
       TextComponent(
-        text: '🗡️',
+        text: p.characterData.effectEmoji,
         position: Vector2(170, 120),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 72)),
@@ -1137,7 +1162,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     _addRadialEmojiEffect(
       center: burstCenter,
-      emojis: const ['📄', '🗡️', '📄', '🗡️', '📄', '🗡️'],
+      emojis: characterEffectBurst(p.characterData, 6),
       radius: 105,
       fontSize: 28,
       color: p.characterData.color,
@@ -1157,7 +1182,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
           damage: p.attackPower * 1.8,
           color: p.characterData.color,
           radius: 16,
-          emoji: '🎤',
+          emoji: p.characterData.projectileEmoji,
         ),
       );
     }
@@ -1178,7 +1203,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     _addRadialEmojiEffect(
       center: p.position,
-      emojis: const ['🎤', '✨', '🎤', '✨', '🎤', '✨'],
+      emojis: characterEffectBurst(p.characterData, 6),
       radius: 88,
       fontSize: 24,
       color: p.characterData.color,
@@ -1200,7 +1225,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     shieldEffect.add(
       TextComponent(
-        text: '🟢',
+        text: p.characterData.effectEmoji,
         position: Vector2(90, -15),
         anchor: Anchor.center,
         textRenderer: TextPaint(style: TextStyle(fontSize: 24)),
@@ -1223,7 +1248,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     );
     _addRadialEmojiEffect(
       center: p.position,
-      emojis: const ['🛡️', '💚', '🛡️', '💚'],
+      emojis: characterEffectBurst(p.characterData, 4),
       radius: 74,
       fontSize: 24,
       color: const Color(0xFF66BB6A),
@@ -1334,6 +1359,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
               damage: baseDmg * 0.6,
               color: data.color,
               radius: 7,
+              emoji: data.projectileEmoji,
               isSplash: true,
             ),
           );
@@ -1353,6 +1379,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
             damage: baseDmg * 2,
             color: data.color,
             radius: 12,
+            emoji: data.projectileEmoji,
             isSplash: true,
             splashRadius: 50,
           ),
@@ -1376,7 +1403,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
           _addExplosionEffect(pos, 150, data.color);
           _addRadialEmojiEffect(
             center: pos,
-            emojis: const ['⚔️', '🗡️', '⚔️', '🗡️'],
+            emojis: characterEffectBurst(data, 4),
             radius: 84,
             fontSize: 22,
             color: data.color,
@@ -1396,6 +1423,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
               damage: baseDmg * 0.5,
               color: data.color,
               radius: 4,
+              emoji: data.projectileEmoji,
             ),
           );
         }
@@ -1543,6 +1571,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     _countdownResumeAuthorized = false;
     _resumePromptToken++;
     BgmManager.revokeGameplayRestore();
+    gameState.syncHp(current: 0, max: player.maxHp);
     setBgmTrack(BgmTrack.gameOver, forceRestart: true);
     playThrottledSfx('sfx_player_die.ogg', volume: 1.0, minInterval: 0.8);
     gameState.gameOver();
@@ -1598,7 +1627,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     final backedAttack = player.attackPower;
     final backedSpeed = player.speed;
     final backedMultiShot = player.multiShotCount;
-    final backedMaxHp = gameState.maxHp;
+    final backedMaxHp = player.maxHp;
     final backedAttackInterval = player.attackInterval;
 
     debugPrint('[REVIVE] === BACKUP ===');
@@ -1648,12 +1677,13 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       '[REVIVE] gameState maxHp=${gameState.maxHp}, currentHp=${gameState.currentHp}',
     );
 
-    resumeGameplayIfAllowed(reason: 'restart_from_current_wave');
 
     // ── 적 스포너 재시작 ──
     enemySpawner = EnemySpawner();
     add(enemySpawner);
     enemySpawner.startWave(currentWave);
+
+    startCountdownResume(reason: 'restart_from_current_wave');
 
     debugPrint('[REVIVE] === COMPLETE === wave=$currentWave');
   }

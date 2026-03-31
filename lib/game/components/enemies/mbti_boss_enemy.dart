@@ -310,51 +310,51 @@ class MbtiBossEnemy extends BaseEnemy {
     switch (type) {
       case AttackType.wave:
         return _BossAttackVisual(
-          attackProjectileEmoji(type),
-          const Color(0xFFFFC857),
-          '결재 폭풍',
+          characterData.projectileEmoji,
+          characterData.color,
+          characterData.attackLabel,
         );
       case AttackType.homing:
         return _BossAttackVisual(
-          attackProjectileEmoji(type),
-          const Color(0xFFFF7043),
-          '폭탄 추적',
+          characterData.projectileEmoji,
+          characterData.color,
+          characterData.attackLabel,
         );
       case AttackType.straight:
         return _BossAttackVisual(
-          attackProjectileEmoji(type),
-          const Color(0xFF90CAF9),
-          '직선 강타',
+          characterData.projectileEmoji,
+          characterData.color,
+          characterData.attackLabel,
         );
       case AttackType.rapid:
         return _BossAttackVisual(
-          attackProjectileEmoji(type),
-          const Color(0xFFFF8A65),
-          '난사 패턴',
+          characterData.projectileEmoji,
+          characterData.color,
+          characterData.attackLabel,
         );
       case AttackType.summon:
         return _BossAttackVisual(
-          attackProjectileEmoji(type),
-          const Color(0xFFF48FB1),
-          '감정 파동',
+          characterData.projectileEmoji,
+          characterData.color,
+          characterData.attackLabel,
         );
       case AttackType.aura:
         return _BossAttackVisual(
-          attackProjectileEmoji(type),
-          const Color(0xFFFFF176),
-          '오라 방출',
+          characterData.projectileEmoji,
+          characterData.color,
+          characterData.attackLabel,
         );
       case AttackType.shield:
         return _BossAttackVisual(
-          attackProjectileEmoji(type),
-          const Color(0xFF81C784),
-          '방패 폭주',
+          characterData.projectileEmoji,
+          characterData.color,
+          characterData.attackLabel,
         );
       case AttackType.blink:
         return _BossAttackVisual(
-          attackProjectileEmoji(type),
-          const Color(0xFF80CBC4),
-          '순간 베기',
+          characterData.projectileEmoji,
+          characterData.color,
+          characterData.attackLabel,
         );
     }
   }

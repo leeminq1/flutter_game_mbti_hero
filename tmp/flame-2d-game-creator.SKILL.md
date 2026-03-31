@@ -1,4 +1,4 @@
----
+﻿---
 name: flame-2d-game-creator
 description: Comprehensive guide for designing, scaffolding, reviewing, and refactoring Flutter Flame 2D games with performance-first gameplay architecture, centralized audio management, stable component lifecycles, Flutter overlay integration, and mobile-friendly optimization. Use when building or improving a Flame 2D game, especially for top-down action, wave survival, projectile-heavy combat, or any project where audio, frame pacing, entity counts, and UI/game coordination must be designed correctly from the start.
 ---
@@ -26,8 +26,13 @@ lib/
     components/
       player.dart
       enemies/
+        base_enemy.dart
+        enemy_definition.dart
+        base_enemy_behaviors.dart
+        mbti_boss_enemy.dart
       projectiles/
-      pickups/
+        base_projectile.dart
+      pickups/ or powerups/
     config/
       character_data.dart
       wave_data.dart
@@ -37,10 +42,18 @@ lib/
       enemy_spawner.dart
   screens/
   widgets/
+    hud_overlay.dart
+    action_buttons.dart
+    countdown_overlay.dart
+    resume_overlay.dart
+    upgrade_overlay.dart
+    minimap_overlay.dart
   services/
+    audio_bootstrap.dart
     bgm_manager.dart
     sfx_manager.dart
     save_manager.dart
+  docs/ (optional architecture notes for complex projects)
 ```
 
 Use this ownership split:
@@ -348,6 +361,34 @@ Overlay rules:
 
 Keep selection screens and lobby fully outside Flame.
 
+### Overlay composition
+
+Split overlays by responsibility instead of building one giant HUD widget.
+
+Recommended split:
+- `HudOverlay` for HP, wave, boss HP, and economy
+- `ActionOverlay` for joystick, action buttons, and placement of small auxiliary widgets
+- `CountdownOverlay`, `ResumeOverlay`, `UpgradeOverlay` for modal flow control
+- `MiniMapOverlay` for low-frequency tactical information
+
+Rules:
+- overlays should call game intent methods such as `confirmLifecycleResume()`, `resumeGameplayIfAllowed()`, `performAssist()`, or `useUltimate()`
+- overlays should not mutate deep game internals or directly toggle multiple engine/audio flags
+- keep overlay placement offsets explicit and grouped so safe-area collisions are easy to tune
+- when one overlay embeds another visual module, keep the child widget reusable and independently testable
+
+### Low-frequency HUD widgets
+
+Not every UI element needs frame-perfect updates.
+
+For widgets such as minimaps, radar panels, threat indicators, and boss locators:
+- prefer reading cached registries like `activeEnemies` instead of scanning the full world tree
+- refresh on a fixed cadence such as 80-150 ms instead of every frame
+- wrap custom-painted widgets in `RepaintBoundary`
+- snapshot positions into lightweight local lists before painting if the source collection may change
+
+Use Flutter for tactical readouts, but do not let tactical readouts become a new hot path.
+
 ## Save and retry design
 
 Separate:
@@ -391,6 +432,39 @@ Recommended pattern:
 
 Do not use the exact same plain filled circle for every ultimate.
 
+### Share attack presentation data
+
+If player attacks, boss attacks, previews, and skill text all describe the same attack family,
+do not duplicate their glyphs or labels in multiple files.
+
+Centralize presentation helpers such as:
+- `attackProjectileEmoji(AttackType type)`
+- `attackDisplayLabel(AttackType type)`
+- `attackColor(AttackType type)` when the color is part of the language
+
+Reuse the same mapping for:
+- player projectiles
+- boss projectiles
+- skill/boss warning text
+- selection or preview UI
+
+This prevents a common regression:
+- player attacks use one emoji set
+- bosses silently fall back to ASCII placeholders
+- previews and labels drift away from the actual projectile visuals
+
+### Adaptive visual degradation
+
+If the game needs cheap projectile rendering under load, degrade selectively.
+
+Rules:
+- keep signature boss attacks and identity-defining projectiles on their full visual path longer than generic mob bullets
+- switch to cheap visuals only after clearly higher thresholds than normal gameplay
+- do not permanently force boss projectiles into placeholder circles just because cheap rendering exists
+- tie visual degradation thresholds to both active projectile count and active enemy count
+
+Drop spectacle gradually, not character identity.
+
 ### 11. Treat wave 5+ as the first stress boundary
 
 In wave-survival Flame games, wave 5 is often the first time special bosses,
@@ -409,6 +483,19 @@ If wave 1-4 are smooth but wave 5+ stalls:
 2. audit chained timers second
 3. audit projectile density third
 4. only then lower enemy caps or visuals
+
+### Spawner pressure contracts
+
+Treat the spawner as a pressure controller, not just a queue consumer.
+
+Recommended rules:
+- compute an effective spawn interval instead of using raw wave data directly
+- reduce spawn throughput while a boss is active
+- lower allowed active-enemy and active-projectile budgets while boss patterns are on screen
+- trigger boss spawn from a clear remaining-enemy threshold so boss intros are readable
+- make batch size and spawn cadence wave-aware, but keep both bounded
+
+The spawner should help preserve readability and frame pacing when bosses, overlays, and projectile bursts overlap.
 
 ## Instrumentation and debugging
 
@@ -619,3 +706,40 @@ Why this is better:
 Review rule:
 - if a behavior needs its own timers, phases, locked vectors, burst counters, or random pattern selection, do not keep that state in `BaseEnemy`
 - move it into the behavior object or a dedicated subclass
+
+
+## Lifecycle ownership contract
+
+For Flutter + Flame games, lifecycle ownership must be explicit.
+
+Rules:
+- choose exactly one app lifecycle owner, usually a top-level `WidgetsBindingObserver` or dedicated app coordinator
+- if the game exposes `handleAppLifecycleState(...)`, route all lifecycle changes through that one method from that one owner
+- do not also poll `WidgetsBinding.instance.lifecycleState` from the main game `update()` loop when a lifecycle observer already exists
+- while the app is inactive, do not advance simulation, AI, spawners, cooldowns, countdown clocks, delayed retries, or combat timers
+- keep lifecycle pause logic separate from user pause logic, but make both pass through stable game intent methods
+
+### Resume authorization
+
+Gameplay resume must be authorized, not inferred.
+
+Rules:
+- battle or boss music must not restore just because the app emitted `resumed`.
+- use an explicit one-shot gameplay resume authorization token or resume session id for combat restoration
+- arm that authorization only when the player explicitly confirms resume or when a deliberate game-controlled restart path is entered
+- consume that authorization when combat actually resumes so stale callbacks cannot reuse it
+- revoke that authorization on background, detached, retry, revive, return-to-lobby, game-over, and victory transitions
+- countdowns and resume prompts may request resume, but they should call one game-owned resume intent instead of restoring engine or BGM directly
+- never let stale countdown completions, delayed futures, or old callbacks resume combat after the state has changed
+
+## Persistence boundaries
+
+Save systems should store run state, not runtime machinery.
+
+Rules:
+- save only small scalar run state and explicitly allowed retry state such as character, wave, HP, upgrades, and currencies
+- never persist active enemies, projectile registries, transient effect counters, overlay state, countdown state, or resume-session flags
+- do not try to solve runtime slowdown by clearing save data unless profiling shows persistence work is actually hot
+- if the game gets slower as waves progress, audit runtime allocations, object churn, registries, timers, and transient cleanup before blaming persistence
+
+

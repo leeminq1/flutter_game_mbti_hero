@@ -195,8 +195,9 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
           label: isFinalBoss ? 'FINAL BOSS' : 'MBTI BOSS',
         );
 
-        // 랜덤 MBTI 캐릭터 선택 (0~7)
-        final randomCharType = CharacterType.values[_random.nextInt(8)];
+        // 랜덤 MBTI 캐릭터 선택 (현재 등록된 전체 MBTI)
+        final randomCharType =
+            CharacterType.values[_random.nextInt(CharacterType.values.length)];
         final characterData = MbtiCharacters.getByType(randomCharType);
 
         final mbtiBoss = MbtiBossEnemy(

@@ -118,7 +118,7 @@ class Player extends SpriteAnimationComponent
     );
 
     // GameState 초기화
-    game.gameState.initHp(maxHp);
+    game.gameState.syncHp(current: currentHp, max: maxHp);
     game.gameState.initUltCooldown(characterData.ultCooldown);
   }
 

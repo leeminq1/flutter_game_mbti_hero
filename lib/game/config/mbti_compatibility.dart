@@ -5,7 +5,7 @@ enum CompatibilityGrade { s, a, b, c }
 
 /// MBTI 궁합 데이터
 class MbtiCompatibility {
-  /// 궁합표 - [메인][동료] = 등급
+  /// 기존 8종 캐릭터는 기존 수치를 우선 유지한다.
   static final Map<CharacterType, Map<CharacterType, CompatibilityGrade>>
   _chart = {
     CharacterType.estj: {
@@ -82,15 +82,105 @@ class MbtiCompatibility {
     },
   };
 
-  /// 궁합 등급 조회
+  static const Set<String> _specialBestPairs = {
+    'ENFP-INFJ',
+    'ENFP-INTJ',
+    'ENFP-ISFP',
+    'ENTJ-INTP',
+    'ENTJ-ISTJ',
+    'ESFJ-ISFP',
+    'ESFJ-ISTJ',
+    'ESTP-ISTP',
+    'INFJ-INFP',
+  };
+
+  static const Set<String> _specialConflictPairs = {
+    'ENFP-ISTJ',
+    'ENTJ-INFP',
+    'ENTJ-ISFP',
+    'ESFJ-INTP',
+    'ESTP-INFJ',
+  };
+
   static CompatibilityGrade getGrade(
     CharacterType main,
     CharacterType companion,
   ) {
-    return _chart[main]?[companion] ?? CompatibilityGrade.b;
+    if (main == companion) {
+      return CompatibilityGrade.a;
+    }
+
+    final explicit = _chart[main]?[companion];
+    if (explicit != null) {
+      return explicit;
+    }
+
+    return _gradeFromTraits(main.name.toUpperCase(), companion.name.toUpperCase());
   }
 
-  /// 궁합에 따른 파워 배율
+  static CompatibilityGrade _gradeFromTraits(String main, String companion) {
+    final pairKey = _pairKey(main, companion);
+    if (_specialBestPairs.contains(pairKey)) {
+      return CompatibilityGrade.s;
+    }
+    if (_specialConflictPairs.contains(pairKey)) {
+      return CompatibilityGrade.c;
+    }
+
+    var score = 0;
+
+    if (main[1] == companion[1]) {
+      score += 2; // N/S
+    }
+    if (main[2] == companion[2]) {
+      score += 2; // T/F
+    }
+    if (main[3] == companion[3]) {
+      score += 1; // J/P
+    }
+    if (main.substring(1) == companion.substring(1)) {
+      score += 2;
+    }
+    if (_temperament(main) == _temperament(companion)) {
+      score += 1;
+    }
+    if (_interactionStyle(main) == _interactionStyle(companion)) {
+      score += 1;
+    }
+    if (main[0] != companion[0]) {
+      score += 1; // E/I 보완
+    }
+    if (main[1] != companion[1] &&
+        main[2] != companion[2] &&
+        main[3] != companion[3]) {
+      score -= 2;
+    }
+
+    if (score >= 6) {
+      return CompatibilityGrade.s;
+    }
+    if (score >= 4) {
+      return CompatibilityGrade.a;
+    }
+    if (score <= 1) {
+      return CompatibilityGrade.c;
+    }
+    return CompatibilityGrade.b;
+  }
+
+  static String _pairKey(String a, String b) {
+    final sorted = [a, b]..sort();
+    return '${sorted[0]}-${sorted[1]}';
+  }
+
+  static String _temperament(String type) {
+    return '${type[1]}${type[2]}';
+  }
+
+  static String _interactionStyle(String type) {
+    return '${type[0]}${type[3]}';
+  }
+
   static double getPowerMultiplier(CompatibilityGrade grade) {
     switch (grade) {
       case CompatibilityGrade.s:
@@ -104,21 +194,19 @@ class MbtiCompatibility {
     }
   }
 
-  /// 궁합에 따른 쿨타임 배율
   static double getCooldownMultiplier(CompatibilityGrade grade) {
     switch (grade) {
       case CompatibilityGrade.s:
-        return 0.8; // 20% 쿨감
+        return 0.8;
       case CompatibilityGrade.a:
         return 0.9;
       case CompatibilityGrade.b:
         return 1.0;
       case CompatibilityGrade.c:
-        return 1.3; // 30% 쿨증가
+        return 1.3;
     }
   }
 
-  /// 등급별 라벨
   static String getGradeLabel(CompatibilityGrade grade) {
     switch (grade) {
       case CompatibilityGrade.s:
@@ -132,7 +220,6 @@ class MbtiCompatibility {
     }
   }
 
-  /// 등급별 설명
   static String getGradeDescription(CompatibilityGrade grade) {
     switch (grade) {
       case CompatibilityGrade.s:
@@ -142,11 +229,10 @@ class MbtiCompatibility {
       case CompatibilityGrade.b:
         return '보통 궁합. 필살기 100%';
       case CompatibilityGrade.c:
-        return '안 맞는 궁합... 필살기 70%';
+        return '상극 조합... 필살기 70%';
     }
   }
 
-  /// S등급이면 체력 회복 보너스 제공
   static bool hasHealBonus(CompatibilityGrade grade) {
     return grade == CompatibilityGrade.s;
   }

@@ -12,12 +12,9 @@ class GameState extends ChangeNotifier {
   int _hpLevel = 0;
   int _attackLevel = 0;
   int _speedLevel = 0;
-  Set<CharacterType> _unlockedCharacters = {
-    CharacterType.estj,
-    CharacterType.entp,
-    CharacterType.infp,
-    CharacterType.isfj,
-  };
+  Set<CharacterType> _unlockedCharacters = Set<CharacterType>.from(
+    CharacterType.values,
+  );
 
   int get coffeeBeans => _coffeeBeans;
   int get totalCoffeeEarned => _totalCoffeeEarned;
@@ -37,7 +34,10 @@ class GameState extends ChangeNotifier {
     _hpLevel = hp;
     _attackLevel = atk;
     _speedLevel = spd;
-    _unlockedCharacters = unlocked;
+    _unlockedCharacters = {
+      ...CharacterType.values,
+      ...unlocked,
+    };
     notifyListeners();
   }
 
@@ -166,6 +166,12 @@ class GameState extends ChangeNotifier {
   void initHp(double max) {
     _maxHp = max;
     _currentHp = max;
+    notifyListeners();
+  }
+
+  void syncHp({required double current, required double max}) {
+    _maxHp = max;
+    _currentHp = current.clamp(0, max);
     notifyListeners();
   }
 

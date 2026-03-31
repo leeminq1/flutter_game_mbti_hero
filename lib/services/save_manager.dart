@@ -27,6 +27,9 @@ class SaveManager {
   // 리더보드 키
   static const String _keyLeaderboard = 'leaderboard_entries';
   static const int _maxLeaderboardEntries = 50;
+  static final List<String> _defaultUnlockedCharacterNames = CharacterType.values
+      .map((type) => type.name)
+      .toList(growable: false);
 
   late SharedPreferences _prefs;
 
@@ -112,14 +115,18 @@ class SaveManager {
   GlobalSaveData loadGlobalData() {
     final chars =
         _prefs.getStringList(_keyUnlockedChars) ??
-        ['estj', 'entp', 'infp', 'isfj'];
+        _defaultUnlockedCharacterNames;
+    final mergedChars = {
+      ..._defaultUnlockedCharacterNames,
+      ...chars,
+    };
 
     return GlobalSaveData(
       coffeeBeans: _prefs.getInt(_keyCoffeeBeans) ?? 0,
       hpLevel: _prefs.getInt(_keyHpLevel) ?? 0,
       attackLevel: _prefs.getInt(_keyAtkLevel) ?? 0,
       speedLevel: _prefs.getInt(_keySpdLevel) ?? 0,
-      unlockedCharacters: chars
+      unlockedCharacters: mergedChars
           .map(
             (name) => CharacterType.values.firstWhere(
               (t) => t.name == name,

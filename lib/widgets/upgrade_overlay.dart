@@ -124,9 +124,13 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
       for (int i = 0; i < draftHp; i++) {
         gs.upgradeHp();
       }
-      final newMax = gs.maxHp + (20.0 * draftHp);
-      gs.initHp(newMax);
-      gs.heal(20.0 * draftHp);
+      final hpBonus = 20.0 * draftHp;
+      widget.game.player.maxHp += hpBonus;
+      widget.game.player.currentHp = widget.game.player.maxHp;
+      gs.syncHp(
+        current: widget.game.player.currentHp,
+        max: widget.game.player.maxHp,
+      );
     }
 
     // ATK 적용
