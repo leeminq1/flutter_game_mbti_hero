@@ -21,13 +21,16 @@ class PowerUp extends PositionComponent
   final PowerUpType type;
   double _lifeTimer = 0;
   static const double maxLifetime = 8.0; // 8초 후 사라짐
+  static const double collectibleDelay = 0.55;
   double _bobTimer = 0; // 위아래 흔들림
+  bool _canBeCollected = false;
+  bool _isCollected = false;
 
   SpriteComponent? _spriteComponent;
 
   PowerUp({required this.type, required Vector2 position})
     : super(
-        size: Vector2(32, 32),
+        size: Vector2(40, 40),
         position: position,
         anchor: Anchor.center,
         priority: 5,
@@ -106,6 +109,9 @@ class PowerUp extends PositionComponent
       removeFromParent();
       return;
     }
+    if (!_canBeCollected && _lifeTimer >= collectibleDelay) {
+      _canBeCollected = true;
+    }
 
     // 위아래 흔들림 애니메이션 (시각적 피드백)
     _bobTimer += dt * 5;
@@ -131,7 +137,12 @@ class PowerUp extends PositionComponent
   ) {
     super.onCollisionStart(intersectionPoints, other);
 
+    if (_isCollected || !_canBeCollected) {
+      return;
+    }
+
     if (other is Player) {
+      _isCollected = true;
       SfxManager.playUi(
         'sfx_powerup.ogg',
         volume: 0.18,

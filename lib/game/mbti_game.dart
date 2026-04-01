@@ -12,6 +12,7 @@ import 'config/mbti_compatibility.dart';
 import 'managers/enemy_spawner.dart';
 import 'managers/game_state.dart';
 import '../services/bgm_manager.dart';
+import '../services/debug_logger.dart';
 import '../services/save_manager.dart';
 import '../services/sfx_manager.dart';
 
@@ -116,6 +117,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       restoredMaxHp: loadedSave?.maxHp,
       restoredSpeed: loadedSave?.speed,
       restoredAttack: loadedSave?.attackPower,
+      restoredMultiShot: loadedSave?.multiShotCount,
+      restoredAttackInterval: loadedSave?.attackInterval,
     );
     player.position = mapSize / 2; // 맵 중앙에서 시작
     world.add(player);
@@ -142,6 +145,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     if (loadedSave != null) {
       gameState.setWave(loadedSave!.wave);
       gameState.syncHp(current: loadedSave!.hp, max: loadedSave!.maxHp);
+      gameState.syncUltCooldown(loadedSave!.ultCooldownCurrent);
+      gameState.syncAssistCooldown(loadedSave!.assistCooldownCurrent);
       // 해당 웨이브부터 시작
       enemySpawner.startWave(loadedSave!.wave - 1);
     } else {
@@ -294,7 +299,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     _lastObservedLifecycleState = state;
     unawaited(BgmManager.handleLifecycleChange(state));
     SfxManager.handleLifecycleChange(state);
-    debugPrint(
+    debugLog(
       '[APP] game lifecycle=$state paused=$paused gamePaused=${gameState.isPaused} gameOver=${gameState.isGameOver} victory=${gameState.isVictory}',
     );
     switch (state) {
@@ -371,14 +376,16 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     bool consumeCountdownAuthorization = false,
   }) {
     if (!_appLifecycleActive || _pausedByAppLifecycle || _awaitingResumeConfirmation) {
-      debugPrint(
+      debugLog(
         '[APP] blocked resume from $reason appActive=$_appLifecycleActive lifecyclePaused=$_pausedByAppLifecycle awaitingConfirm=$_awaitingResumeConfirmation',
       );
       return;
     }
 
     if (consumeCountdownAuthorization && !_consumeCountdownResumeAuthorization()) {
-      debugPrint('[APP] blocked resume from $reason because countdown authorization was missing');
+      debugLog(
+        '[APP] blocked resume from $reason because countdown authorization was missing',
+      );
       return;
     }
 
@@ -427,7 +434,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         _awaitingResumeConfirmation ||
         gameState.isGameOver ||
         gameState.isVictory) {
-      debugPrint(
+      debugLog(
         '[APP] blocked countdown resume from $reason '
         'appActive=$_appLifecycleActive lifecyclePaused=$_pausedByAppLifecycle '
         'awaitingConfirm=$_awaitingResumeConfirmation gameOver=${gameState.isGameOver} '
@@ -480,7 +487,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     if (!kDebugMode) {
       return;
     }
-    debugPrint(
+    debugLog(
       '[PERF][$reason] enemies=${activeEnemies.length} '
       'projectiles=${activeProjectiles.length} '
       'effects=${_countTransientWorldEffects()} '
@@ -594,7 +601,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         }
       }
     } catch (e) {
-      debugPrint('Error loading map tile: $e');
+      debugLogError('Error loading map tile: ', e);
     }
   }
 
@@ -618,7 +625,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         _addStaticWorldComponent(obstacle);
       }
     } catch (e) {
-      debugPrint('Error loading obstacle: $e');
+      debugLogError('Error loading obstacle: ', e);
     }
   }
 
@@ -631,7 +638,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   // ═══ 자동 공격 패턴 ═══
   // ══════════════════════════════════════════
   /// 플레이어 자동 공격 공통 헬퍼 (다중 발사 지원)
-  void _fireMultiProjectiles({
+  bool _fireMultiProjectiles({
     required Player p,
     required List<BaseEnemy> enemies,
     required double speed,
@@ -642,11 +649,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     double splashRadius = 30,
     double lifetime = 3.0,
   }) {
-    if (enemies.isEmpty) return;
-    final closest = _findClosestEnemy(p.position, enemies);
-    if (closest == null) return;
-
-    final baseDir = (closest.position - p.position).normalized();
+    final baseDir = _resolveAutoAttackDirection(p, enemies);
     final count = p.multiShotCount;
     final spreadAngle = 0.15; // 투사체 간 각도 차이
 
@@ -673,42 +676,36 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         ),
       );
     }
+    return true;
   }
 
-  void performAutoAttack(Player attackingPlayer) {
+  bool performAutoAttack(Player attackingPlayer) {
     final enemies = activeEnemies;  // [성능] O(1) 캐시 접근
 
     switch (attackingPlayer.characterData.attackType) {
       case AttackType.wave:
-        _attackWave(attackingPlayer, enemies);
-        break;
+        return _attackWave(attackingPlayer, enemies);
       case AttackType.homing:
-        _attackHoming(attackingPlayer, enemies);
-        break;
+        return _attackHoming(attackingPlayer, enemies);
       case AttackType.summon:
-        _attackSummon(attackingPlayer, enemies);
-        break;
+        return _attackSummon(attackingPlayer, enemies);
       case AttackType.straight:
-        _attackStraight(attackingPlayer, enemies);
-        break;
+        return _attackStraight(attackingPlayer, enemies);
       case AttackType.aura:
-        _attackAura(attackingPlayer, enemies);
-        break;
+        return _attackAura(attackingPlayer, enemies);
       case AttackType.blink:
-        _attackBlink(attackingPlayer, enemies);
-        break;
+        return _attackBlink(attackingPlayer, enemies);
       case AttackType.rapid:
-        _attackRapid(attackingPlayer, enemies);
-        break;
+        return _attackRapid(attackingPlayer, enemies);
       case AttackType.shield:
-        _attackShield(attackingPlayer, enemies);
-        break;
+        return _attackShield(attackingPlayer, enemies);
     }
+    return false;
   }
 
   /// ESTJ: 로 돌진하는 방패 (파란색 잔상) 🛡️
-  void _attackWave(Player p, List<BaseEnemy> enemies) {
-    _fireMultiProjectiles(
+  bool _attackWave(Player p, List<BaseEnemy> enemies) {
+    return _fireMultiProjectiles(
       p: p,
       enemies: enemies,
       speed: 300,
@@ -722,8 +719,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// ENTP: 팩트 폭격 - 전구 발사 💡
-  void _attackHoming(Player p, List<BaseEnemy> enemies) {
-    _fireMultiProjectiles(
+  bool _attackHoming(Player p, List<BaseEnemy> enemies) {
+    return _fireMultiProjectiles(
       p: p,
       enemies: enemies,
       speed: 250,
@@ -736,8 +733,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// INFP: 내면의 친구 - 정령 소환 (꽃잎 치유 광선 🌸)
-  void _attackSummon(Player p, List<BaseEnemy> enemies) {
-    _fireMultiProjectiles(
+  bool _attackSummon(Player p, List<BaseEnemy> enemies) {
+    return _fireMultiProjectiles(
       p: p,
       enemies: enemies,
       speed: 180,
@@ -749,8 +746,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// ISTP: 나사 던지기 - 전방 직선 스패너 투척 🔧
-  void _attackStraight(Player p, List<BaseEnemy> enemies) {
-    _fireMultiProjectiles(
+  bool _attackStraight(Player p, List<BaseEnemy> enemies) {
+    return _fireMultiProjectiles(
       p: p,
       enemies: enemies,
       speed: 350,
@@ -762,8 +759,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// ENFJ: 리더십 오라 - 깃발 휘두르기 🚩
-  void _attackAura(Player p, List<BaseEnemy> enemies) {
-    _fireMultiProjectiles(
+  bool _attackAura(Player p, List<BaseEnemy> enemies) {
+    return _fireMultiProjectiles(
       p: p,
       enemies: enemies,
       speed: 200,
@@ -775,8 +772,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// INTJ: 순간이동 슬래시 - 가장 가까운 적 위치로 순간이동 후 범위 공격
-  void _attackBlink(Player attackingPlayer, List<BaseEnemy> enemies) {
-    _fireMultiProjectiles(
+  bool _attackBlink(Player attackingPlayer, List<BaseEnemy> enemies) {
+    return _fireMultiProjectiles(
       p: attackingPlayer,
       enemies: enemies,
       speed: 320,
@@ -790,9 +787,9 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// ESFP: 빠른 연타 - 마이크 음파 🎤
-  void _attackRapid(Player p, List<BaseEnemy> enemies) {
+  bool _attackRapid(Player p, List<BaseEnemy> enemies) {
     // 멀티샷 갯수에 약간의 패널티(원래 2발 발사하므로 계수 보정)
-    _fireMultiProjectiles(
+    return _fireMultiProjectiles(
       p: p,
       enemies: enemies,
       speed: 280,
@@ -803,8 +800,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// ISFJ: 냄비 뚜껑 방어 투사체 🍲
-  void _attackShield(Player p, List<BaseEnemy> enemies) {
-    _fireMultiProjectiles(
+  bool _attackShield(Player p, List<BaseEnemy> enemies) {
+    final fired = _fireMultiProjectiles(
       p: p,
       enemies: enemies,
       speed: 200,
@@ -816,8 +813,9 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     // 20% + 멀티샷 비례 확률로 약간 회복
     final healChance = 0.2 + (p.multiShotCount * 0.05);
     if (Random().nextDouble() < healChance) {
-      p.heal(p.maxHp * 0.02);
+      p.heal(p.maxHp * 0.02, playEffectSound: false);
     }
+    return fired;
   }
 
   // ══════════════════════════════════════════
@@ -834,6 +832,23 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       }
     }
     return closest;
+  }
+
+  Vector2 _resolveAutoAttackDirection(Player player, List<BaseEnemy> enemies) {
+    final closest = _findClosestEnemy(player.position, enemies);
+    if (closest != null) {
+      final toEnemy = closest.position - player.position;
+      if (toEnemy.length2 > 0) {
+        return toEnemy.normalized();
+      }
+    }
+
+    final fallback = player.attackFacingDirection;
+    if (fallback.length2 > 0) {
+      return fallback.normalized();
+    }
+
+    return Vector2(1, 0);
   }
 
   void _dealDamageInRadius(Vector2 center, double radius, double damage) {
@@ -1543,10 +1558,16 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       character: gameState.selectedCharacter,
       companion: gameState.selectedCompanion,
       wave: gameState.currentWave,
-      hp: gameState.currentHp,
-      maxHp: gameState.maxHp,
-      attackPower: player.attackPower,
-      speed: player.speed,
+      playerSnapshot: PlayerSnapshot(
+        hp: player.currentHp,
+        maxHp: player.maxHp,
+        attackPower: player.attackPower,
+        speed: player.speed,
+        multiShotCount: player.multiShotCount,
+        attackInterval: player.attackInterval,
+        ultCooldownCurrent: gameState.ultCooldownCurrent,
+        assistCooldownCurrent: gameState.assistCooldownCurrent,
+      ),
       kills: 0,
       hpLevel: gameState.hpLevel,
       atkLevel: gameState.attackLevel,
@@ -1559,6 +1580,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     _countdownResumeAuthorized = false;
     _resumePromptToken++;
     BgmManager.revokeGameplayRestore();
+    unawaited(setBgmTrack(BgmTrack.lobby, forceRestart: true));
+    playThrottledSfx('sfx_wave_clear.ogg', volume: 0.9, minInterval: 0.2);
     gameState.victory();
     saveManager?.deleteSave(); // 클리어 시 세이브 삭제
     overlays.add('Victory');
@@ -1629,15 +1652,20 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     final backedMultiShot = player.multiShotCount;
     final backedMaxHp = player.maxHp;
     final backedAttackInterval = player.attackInterval;
+    final backedUltCooldownCurrent = gameState.ultCooldownCurrent;
+    final backedAssistCooldownCurrent = gameState.assistCooldownCurrent;
 
-    debugPrint('[REVIVE] === BACKUP ===');
-    debugPrint(
+    debugLog('[REVIVE] === BACKUP ===');
+    debugLog(
       '[REVIVE] attack=$backedAttack, speed=$backedSpeed, multiShot=$backedMultiShot',
     );
-    debugPrint(
+    debugLog(
       '[REVIVE] maxHp=$backedMaxHp, attackInterval=$backedAttackInterval',
     );
-    debugPrint(
+    debugLog(
+      '[REVIVE] ultCd=$backedUltCooldownCurrent, assistCd=$backedAssistCooldownCurrent',
+    );
+    debugLog(
       '[REVIVE] coffeeBeans=${gameState.coffeeBeans}, hpLv=${gameState.hpLevel}, atkLv=${gameState.attackLevel}',
     );
 
@@ -1665,15 +1693,17 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     world.add(player);
     camera.follow(player, snap: true);
 
-    debugPrint('[REVIVE] === PLAYER CREATED with restored params ===');
+    debugLog('[REVIVE] === PLAYER CREATED with restored params ===');
 
     // ── GameState 복원 (reset 호출하지 않음!) ──
     gameState.resetForRetry();
     gameState.initHp(backedMaxHp);
     gameState.initUltCooldown(characterData.ultCooldown);
     gameState.initAssistCooldown();
+    gameState.syncUltCooldown(backedUltCooldownCurrent);
+    gameState.syncAssistCooldown(backedAssistCooldownCurrent);
 
-    debugPrint(
+    debugLog(
       '[REVIVE] gameState maxHp=${gameState.maxHp}, currentHp=${gameState.currentHp}',
     );
 
@@ -1685,7 +1715,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
     startCountdownResume(reason: 'restart_from_current_wave');
 
-    debugPrint('[REVIVE] === COMPLETE === wave=$currentWave');
+    debugLog('[REVIVE] === COMPLETE === wave=$currentWave');
   }
 
   void startWithCharacter(CharacterType type) {

@@ -22,6 +22,7 @@ class Player extends SpriteAnimationComponent
   // 공격 타이머
   double _attackTimer = 0;
   late double _attackInterval;
+  Vector2 _attackFacingDirection = Vector2(1, 0);
 
   // 데미지 무적 (피격 후 잠시 무적)
   double _damageInvincibleTimer = 0;
@@ -126,6 +127,7 @@ class Player extends SpriteAnimationComponent
   static const double playerHitboxRadius = 18.0;
 
   double get attackInterval => _attackInterval;
+  Vector2 get attackFacingDirection => _attackFacingDirection.clone();
 
   @override
   void update(double dt) {
@@ -134,6 +136,9 @@ class Player extends SpriteAnimationComponent
     if (game.joystickDirection != Vector2.zero()) {
       final delta = game.joystickDirection;
       position.add(delta * speed * dt);
+      if (delta.length2 > 0) {
+        _attackFacingDirection = delta.normalized();
+      }
 
       // 스프라이트 반전 (좌/우 방향 전환)
       if (delta.x < 0 && !isFlippedHorizontally) {
@@ -203,8 +208,10 @@ class Player extends SpriteAnimationComponent
 
   /// 자동 공격 (캐릭터 타입별로 다름)
   void _autoAttack() {
-    game.tryPlayShootSfx();
-    game.performAutoAttack(this);
+    final didAttack = game.performAutoAttack(this);
+    if (didAttack) {
+      game.tryPlayShootSfx();
+    }
   }
 
   /// 필살기 사용
@@ -233,13 +240,15 @@ class Player extends SpriteAnimationComponent
   }
 
   /// 회복
-  void heal(double amount) {
+  void heal(double amount, {bool playEffectSound = true}) {
     currentHp = (currentHp + amount).clamp(0, maxHp);
-    SfxManager.playUi(
-      'sfx_heal.ogg',
-      volume: 0.15,
-      minInterval: 0.22,
-    );
+    if (playEffectSound) {
+      SfxManager.playUi(
+        'sfx_heal.ogg',
+        volume: 0.15,
+        minInterval: 0.22,
+      );
+    }
     game.gameState.heal(amount);
   }
 

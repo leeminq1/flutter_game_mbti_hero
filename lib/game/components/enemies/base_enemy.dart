@@ -280,14 +280,28 @@ class BaseEnemy extends PositionComponent
     // 커피콩 보상
     game.playThrottledSfx(
       'sfx_coin.ogg',
-      volume: 0.16,
-      minInterval: 0.16,
+      volume: 0.08,
+      minInterval: 0.28,
     );
     game.gameState.addCoffeeBeans(expValue);
 
     // 파워업 드랍 시도
     final powerUp = PowerUp.trySpawn(position);
     if (powerUp != null) {
+      final awayFromPlayer = powerUp.position - game.player.position;
+      final dropDirection = awayFromPlayer.length2 > 0
+          ? awayFromPlayer.normalized()
+          : Vector2(0, -1);
+      final sideOffset = Vector2(-dropDirection.y, dropDirection.x) *
+          (_random.nextDouble() * 28 - 14);
+      powerUp.position =
+          powerUp.position +
+          (dropDirection * 52) +
+          sideOffset;
+      powerUp.position.clamp(
+        Vector2(28, 28),
+        Vector2(game.mapSize.x - 28, game.mapSize.y - 28),
+      );
       game.world.add(powerUp);
     }
 

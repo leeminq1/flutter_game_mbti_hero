@@ -154,6 +154,15 @@ class GameState extends ChangeNotifier {
     }
   }
 
+  void syncAssistCooldown(double current) {
+    _assistCooldownCurrent = current.clamp(0, _assistCooldownMax);
+    _assistCooldownBucket = _cooldownBucket(
+      _assistCooldownCurrent,
+      _assistCooldownMax,
+    );
+    notifyListeners();
+  }
+
   // --- HP ---
   double _maxHp = 200;
   double _currentHp = 200;
@@ -259,6 +268,12 @@ class GameState extends ChangeNotifier {
       0,
       _ultCooldownMax,
     );
+    _ultCooldownBucket = _cooldownBucket(_ultCooldownCurrent, _ultCooldownMax);
+    notifyListeners();
+  }
+
+  void syncUltCooldown(double current) {
+    _ultCooldownCurrent = current.clamp(0, _ultCooldownMax);
     _ultCooldownBucket = _cooldownBucket(_ultCooldownCurrent, _ultCooldownMax);
     notifyListeners();
   }
