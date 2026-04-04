@@ -32,14 +32,46 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/
     - assets/images/characters/
-    - assets/images/enemies/
-    - assets/images/effects/
-    - assets/images/effects/extracted/
-    - assets/images/ending/
-    - assets/images/maps/
-    - assets/images/maps/obstacles/
-    - assets/images/ui/
-    - assets/images/ui/extracted/
-    - assets/audio/
+    - assets/images/enemies/enemy_0.png
+    - assets/images/enemies/enemy_1.png
+    - assets/images/enemies/enemy_2.png
+    - assets/images/enemies/enemy_3.png
+    - assets/images/enemies/enemy_bug.png
+    - assets/images/enemies/enemy_sharp.png
+    - assets/images/enemies/enemy_stapler.png
+    - assets/images/enemies/boss_1_proc.png
+    - assets/images/enemies/boss_2_proc.png
+    - assets/images/enemies/boss_3_proc.png
+    - assets/images/effects/extracted/icon_0.png
+    - assets/images/effects/extracted/icon_1.png
+    - assets/images/effects/extracted/icon_2.png
+    - assets/images/effects/extracted/icon_3.png
+    - assets/images/effects/extracted/icon_4.png
+    - assets/images/ending/ending_scene_1.png
+    - assets/images/ending/ending_scene_2.png
+    - assets/images/ending/ending_scene_3.png
+    - assets/images/maps/bg_tile.png
+    - assets/images/maps/obstacles/obstacle_0.png
+    - assets/images/ui/splash_bg.png
+    - assets/audio/bgm_battle.mp3
+    - assets/audio/bgm_boss.mp3
+    - assets/audio/bgm_gameover.mp3
+    - assets/audio/bgm_gameover.ogg
+    - assets/audio/bgm_lobby.mp3
+    - assets/audio/bgm_lobby.ogg
+    - assets/audio/sfx_assist.ogg
+    - assets/audio/sfx_boss_attack.ogg
+    - assets/audio/sfx_boss_warning.ogg
+    - assets/audio/sfx_button.ogg
+    - assets/audio/sfx_coin.ogg
+    - assets/audio/sfx_enemy_die.ogg
+    - assets/audio/sfx_enemy_hit.ogg
+    - assets/audio/sfx_enemy_spawn.ogg
+    - assets/audio/sfx_heal.ogg
+    - assets/audio/sfx_player_die.ogg
+    - assets/audio/sfx_player_hit.ogg
+    - assets/audio/sfx_powerup.ogg
+    - assets/audio/sfx_shoot.ogg
+    - assets/audio/sfx_ultimate.ogg
+    - assets/audio/sfx_wave_clear.ogg
