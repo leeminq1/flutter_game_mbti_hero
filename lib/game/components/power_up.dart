@@ -158,10 +158,10 @@ class PowerUp extends PositionComponent
   void _applyEffect(Player player) {
     switch (type) {
       case PowerUpType.attackBoost:
-        player.attackPower += 3;
+        player.applyAttackBoost(Player.attackUpgradePerLevel);
         break;
       case PowerUpType.speedBoost:
-        player.speed += 8;
+        player.applySpeedBoost(8);
         break;
       case PowerUpType.healPack:
         player.heal(player.maxHp * 0.25);

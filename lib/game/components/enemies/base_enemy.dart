@@ -59,10 +59,12 @@ class BaseEnemy extends PositionComponent
     final waveMultiplier = 1.0 + (waveIndex * 0.045);
     final bossBonus = _isBoss ? 0.25 + ((waveIndex ~/ 5) * 0.05) : 0.0;
     final lateWaveBonus = currentWave >= 5 ? 1.3 : 1.0;
+    final wave20SpikeBonus = currentWave >= 20 ? 1.3 : 1.0;
     final hpMultiplier = (waveMultiplier + bossBonus) * lateWaveBonus;
 
-    maxHp *= hpMultiplier;
+    maxHp *= hpMultiplier * wave20SpikeBonus;
     currentHp = maxHp;
+    damage *= wave20SpikeBonus;
 
     if (_isBoss) {
       _nextQuoteTime = 8.0 + _random.nextDouble() * 4.0;

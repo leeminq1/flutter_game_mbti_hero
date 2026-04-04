@@ -9,12 +9,22 @@ import '../../services/sfx_manager.dart';
 /// 플레이어 컴포넌트
 class Player extends SpriteAnimationComponent
     with HasGameReference<MbtiGame>, CollisionCallbacks {
+  static const double hpUpgradePerLevel = 20.0;
+  static const double attackUpgradePerLevel = 3.0;
+  static const double speedUpgradePerLevel = 10.0;
+  static const double maxAttackPickupBonus = 24.0;
+  static const double maxSpeedPickupBonus = 48.0;
+  static const int maxMultiShotLimit = 10;
+
   final CharacterData characterData;
 
   late double currentHp;
   late double maxHp;
   late double speed;
   late double attackPower;
+  late double _baseMaxHp;
+  late double _baseSpeed;
+  late double _baseAttackPower;
 
   // 무적 상태 (ESTJ 필살기 등)
   bool isInvincible = false;
@@ -88,19 +98,27 @@ class Player extends SpriteAnimationComponent
     }
 
     // 메타 프로그레션 (글로벌 업그레이드) 적용 - 레벨당 약 1.7% 증가
-    final hpMultiplier = 1.0 + (game.gameState.hpLevel * 0.014);
-    final atkMultiplier = 1.0 + (game.gameState.attackLevel * 0.014);
-    final spdMultiplier = 1.0 + (game.gameState.speedLevel * 0.014);
+    final hpBonus = game.gameState.hpLevel * hpUpgradePerLevel;
+    final atkBonus = game.gameState.attackLevel * attackUpgradePerLevel;
+    final spdBonus = game.gameState.speedLevel * speedUpgradePerLevel;
 
     // 능력치 초기화
     // 능력치 초기화 (복원 데이터가 있으면 우선 사용)
-    maxHp = restoredMaxHp ?? (characterData.maxHp * hpMultiplier);
-    currentHp = restoredHp ?? maxHp;
-    speed = restoredSpeed ?? (characterData.speed * spdMultiplier);
-    attackPower = restoredAttack ?? (characterData.attack * atkMultiplier);
+    _baseMaxHp = characterData.maxHp + hpBonus;
+    _baseAttackPower = characterData.attack + atkBonus;
+    _baseSpeed = characterData.speed + spdBonus;
+
+    maxHp = restoredMaxHp ?? _baseMaxHp;
+    currentHp = (restoredHp ?? maxHp).clamp(0, maxHp).toDouble();
+    speed = (restoredSpeed ?? _baseSpeed).clamp(0, maxSpeedCap).toDouble();
+    attackPower =
+        (restoredAttack ?? _baseAttackPower)
+            .clamp(0, maxAttackPowerCap)
+            .toDouble();
     _attackInterval = restoredAttackInterval ?? characterData.baseAttackSpeed;
     if (restoredMultiShot != null) {
-      multiShotCount = restoredMultiShot!;
+      multiShotCount =
+          restoredMultiShot!.clamp(3, maxMultiShotLimit).toInt();
     }
     _damageFlashColors = List<Color>.generate(
       _damageFlashBuckets + 1,
@@ -128,6 +146,11 @@ class Player extends SpriteAnimationComponent
 
   double get attackInterval => _attackInterval;
   Vector2 get attackFacingDirection => _attackFacingDirection.clone();
+  double get maxAttackPowerCap => _baseAttackPower + maxAttackPickupBonus;
+  double get maxSpeedCap => _baseSpeed + maxSpeedPickupBonus;
+  double get baseMaxHp => _baseMaxHp;
+  double get baseAttackPower => _baseAttackPower;
+  double get baseSpeed => _baseSpeed;
 
   @override
   void update(double dt) {
@@ -257,8 +280,35 @@ class Player extends SpriteAnimationComponent
     _attackInterval = (_attackInterval - amount).clamp(0.1, 3.0);
   }
 
+  void applyPermanentHpUpgrade(double amount) {
+    _baseMaxHp += amount;
+    maxHp += amount;
+    currentHp = maxHp;
+    game.gameState.syncHp(current: currentHp, max: maxHp);
+  }
+
+  void applyPermanentAttackUpgrade(double amount) {
+    _baseAttackPower += amount;
+    attackPower =
+        (attackPower + amount).clamp(0, maxAttackPowerCap).toDouble();
+  }
+
+  void applyPermanentSpeedUpgrade(double amount) {
+    _baseSpeed += amount;
+    speed = (speed + amount).clamp(0, maxSpeedCap).toDouble();
+  }
+
+  void applyAttackBoost(double amount) {
+    attackPower =
+        (attackPower + amount).clamp(0, maxAttackPowerCap).toDouble();
+  }
+
+  void applySpeedBoost(double amount) {
+    speed = (speed + amount).clamp(0, maxSpeedCap).toDouble();
+  }
+
   /// 멀티샷 증가 (+2, 최대 10발)
   void increaseMultiShot() {
-    multiShotCount = min(10, multiShotCount + 1);
+    multiShotCount = min(maxMultiShotLimit, multiShotCount + 1);
   }
 }

@@ -332,11 +332,7 @@ class GameState extends ChangeNotifier {
 
   // --- 리셋 ---
   void reset() {
-    _coffeeBeans = 0;
     _totalCoffeeEarned = 0;
-    _hpLevel = 0;
-    _attackLevel = 0;
-    _speedLevel = 0;
     _currentHp = _maxHp;
     _currentWave = 1;
     _enemiesRemaining = 0;

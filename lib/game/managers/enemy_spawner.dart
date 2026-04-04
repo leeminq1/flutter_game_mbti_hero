@@ -3,6 +3,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../components/enemies/base_enemy.dart';
 import '../components/enemies/mbti_boss_enemy.dart';
+import '../components/projectiles/base_projectile.dart';
 import '../config/wave_data.dart';
 import '../config/character_data.dart';
 import '../mbti_game.dart';
@@ -151,6 +152,7 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
         : _bossSpawned && isBossWave
         ? 16
         : 20;
+    final enemyProjectileCount = _countEnemyProjectiles();
     final singleSpawnInterval =
         (_effectiveSpawnInterval * bossPressureThrottle) /
         _batchSize.clamp(1, 100);
@@ -158,10 +160,23 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
     if (_spawnTimer >= singleSpawnInterval &&
         _spawnQueue.isNotEmpty &&
         game.activeEnemies.length < maxEnemiesWhileBossActive &&
-        game.activeProjectiles.length < projectileBudgetWhileBossActive) {
+        enemyProjectileCount < projectileBudgetWhileBossActive) {
       _spawnTimer = 0;
       _spawnEnemy(_spawnQueue.removeAt(0));
     }
+  }
+
+  int _countEnemyProjectiles() {
+    var count = 0;
+    for (final projectile in game.activeProjectiles) {
+      final isEnemyProjectile = projectile.children.whereType<TagComponent>().any(
+        (tag) => tag.tag == 'enemy_projectile',
+      );
+      if (isEnemyProjectile) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /// 적 스폰

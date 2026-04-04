@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../game/mbti_game.dart';
+import '../game/components/player.dart';
 
 /// 보스 처치 후 강화 오버레이
 class UpgradeOverlay extends StatefulWidget {
@@ -124,13 +125,8 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
       for (int i = 0; i < draftHp; i++) {
         gs.upgradeHp();
       }
-      final hpBonus = 20.0 * draftHp;
-      widget.game.player.maxHp += hpBonus;
-      widget.game.player.currentHp = widget.game.player.maxHp;
-      gs.syncHp(
-        current: widget.game.player.currentHp,
-        max: widget.game.player.maxHp,
-      );
+      final hpBonus = Player.hpUpgradePerLevel * draftHp;
+      widget.game.player.applyPermanentHpUpgrade(hpBonus);
     }
 
     // ATK 적용
@@ -138,7 +134,9 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
       for (int i = 0; i < draftAtk; i++) {
         gs.upgradeAttack();
       }
-      widget.game.player.attackPower += (3 * draftAtk);
+      widget.game.player.applyPermanentAttackUpgrade(
+        Player.attackUpgradePerLevel * draftAtk,
+      );
     }
 
     // SPD 적용
@@ -146,7 +144,9 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
       for (int i = 0; i < draftSpd; i++) {
         gs.upgradeSpeed();
       }
-      widget.game.player.speed += (10 * draftSpd);
+      widget.game.player.applyPermanentSpeedUpgrade(
+        Player.speedUpgradePerLevel * draftSpd,
+      );
     }
 
     if (spentBeans > 0) {
