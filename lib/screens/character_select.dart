@@ -124,6 +124,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
                       onTap: () async {
                         Navigator.pop(ctx);
                         await widget.saveManager?.deleteSave();
+                        await widget.saveManager?.clearCachedUpgradeLevels();
                         widget.onSelect(character, companion);
                       },
                     ),
@@ -400,6 +401,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
                   );
                   if (confirm == true) {
                     await widget.saveManager?.deleteSave();
+                    await widget.saveManager?.clearCachedUpgradeLevels();
                     if (mounted) setState(() {});
                   }
                 },
@@ -1055,7 +1057,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
                     height: 32,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: companion.color.withOpacity(0.3),
+                      color: companion.color.withValues(alpha: 0.3),
                       border: Border.all(color: companion.color, width: 2),
                     ),
                     child: Center(
@@ -1164,7 +1166,7 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
 // ══════════════════════════════════════════
 class _UpgradeDialog extends StatefulWidget {
   final SaveManager? saveManager;
-  const _UpgradeDialog({this.saveManager});
+  const _UpgradeDialog({required this.saveManager});
 
   @override
   State<_UpgradeDialog> createState() => _UpgradeDialogState();
@@ -1178,7 +1180,7 @@ class _UpgradeDialogState extends State<_UpgradeDialog> {
   int draftSpd = 0;
   int spentBeans = 0;
 
-  final int maxLevel = 7;
+  final int maxLevel = 10;
 
   @override
   void initState() {
@@ -1205,7 +1207,7 @@ class _UpgradeDialogState extends State<_UpgradeDialog> {
     });
   }
 
-  int _upgradeCost(int level) => (level + 1) * 100;
+  int _upgradeCost(int level) => (level + 1) * 200;
 
   int get currentBeans => _data.coffeeBeans - spentBeans;
 

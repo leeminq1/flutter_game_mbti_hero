@@ -9,11 +9,15 @@ import '../../services/sfx_manager.dart';
 /// 플레이어 컴포넌트
 class Player extends SpriteAnimationComponent
     with HasGameReference<MbtiGame>, CollisionCallbacks {
+  static const double startingSpeedMultiplier = 1.5;
+  static const double startingAttackMultiplier = 1.3;
   static const double hpUpgradePerLevel = 20.0;
   static const double attackUpgradePerLevel = 3.0;
   static const double speedUpgradePerLevel = 10.0;
-  static const double maxAttackPickupBonus = 24.0;
-  static const double maxSpeedPickupBonus = 48.0;
+  static const double attackPickupBoostAmount = 2.0;
+  static const double speedPickupBoostAmount = 5.0;
+  static const double maxAttackPickupBonus = 18.0;
+  static const double maxSpeedPickupBonus = 32.0;
   static const int maxMultiShotLimit = 10;
 
   final CharacterData characterData;
@@ -46,8 +50,8 @@ class Player extends SpriteAnimationComponent
   late double _nextQuoteTime;
   final Random _random = Random();
 
-  // 멀티샷 개수 (최초 3개 발사)
-  int multiShotCount = 3;
+  // 멀티샷 개수 (최초 4개 발사)
+  int multiShotCount = 4;
 
   // 복원용 임시 저장 변수
   final double? restoredHp;
@@ -105,20 +109,20 @@ class Player extends SpriteAnimationComponent
     // 능력치 초기화
     // 능력치 초기화 (복원 데이터가 있으면 우선 사용)
     _baseMaxHp = characterData.maxHp + hpBonus;
-    _baseAttackPower = characterData.attack + atkBonus;
-    _baseSpeed = characterData.speed + spdBonus;
+    _baseAttackPower = (characterData.attack + atkBonus) * startingAttackMultiplier;
+    _baseSpeed = (characterData.speed + spdBonus) * startingSpeedMultiplier;
 
     maxHp = restoredMaxHp ?? _baseMaxHp;
     currentHp = (restoredHp ?? maxHp).clamp(0, maxHp).toDouble();
     speed = (restoredSpeed ?? _baseSpeed).clamp(0, maxSpeedCap).toDouble();
-    attackPower =
-        (restoredAttack ?? _baseAttackPower)
-            .clamp(0, maxAttackPowerCap)
-            .toDouble();
+    final restoredOrBuffedAttack = restoredAttack == null
+        ? _baseAttackPower
+        : max(restoredAttack!, _baseAttackPower);
+    attackPower = restoredOrBuffedAttack.clamp(0, maxAttackPowerCap).toDouble();
     _attackInterval = restoredAttackInterval ?? characterData.baseAttackSpeed;
     if (restoredMultiShot != null) {
       multiShotCount =
-          restoredMultiShot!.clamp(3, maxMultiShotLimit).toInt();
+          restoredMultiShot!.clamp(4, maxMultiShotLimit).toInt();
     }
     _damageFlashColors = List<Color>.generate(
       _damageFlashBuckets + 1,
@@ -239,9 +243,21 @@ class Player extends SpriteAnimationComponent
 
   /// 필살기 사용
   void useUltimate() {
-    if (game.gameState.isUltReady) {
-      game.gameState.useUlt();
-      game.performUltimate(this);
+    final gs = game.gameState;
+    var usedTicket = false;
+    if (!gs.isUltReady) {
+      return;
+    }
+    if (gs.ultCooldownCurrent <= 0) {
+      gs.useUlt();
+    } else if (!gs.consumeUltTicket()) {
+      return;
+    } else {
+      usedTicket = true;
+    }
+    game.performUltimate(this);
+    if (usedTicket) {
+      game.autoSave();
     }
   }
 

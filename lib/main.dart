@@ -325,7 +325,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             game: _game!,
             overlayBuilderMap: {
               'HUD': (context, game) =>
-                  HudOverlay(gameState: (game as MbtiGame).gameState),
+                  HudOverlay(
+                    gameState: (game as MbtiGame).gameState,
+                    game: game,
+                  ),
               'Actions': (context, game) =>
                   ActionOverlay(game: game as MbtiGame),
               'GameOver': (context, game) => ResultOverlay(

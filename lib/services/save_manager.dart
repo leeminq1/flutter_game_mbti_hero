@@ -18,6 +18,8 @@ class SaveManager {
   static const String _keyUltCooldownCurrent = 'game_ult_cooldown_current';
   static const String _keyAssistCooldownCurrent =
       'game_assist_cooldown_current';
+  static const String _keyUltTicketCount = 'game_ult_ticket_count';
+  static const String _keyAssistTicketCount = 'game_assist_ticket_count';
   static const String _keyKills = 'game_kills';
   static const String _keySaveHpLevel = 'game_hp_level';
   static const String _keySaveAtkLevel = 'game_atk_level';
@@ -76,6 +78,8 @@ class SaveManager {
       _keyAssistCooldownCurrent,
       playerSnapshot.assistCooldownCurrent,
     );
+    await _prefs.setInt(_keyUltTicketCount, playerSnapshot.ultTicketCount);
+    await _prefs.setInt(_keyAssistTicketCount, playerSnapshot.assistTicketCount);
     await _prefs.setInt(_keyKills, kills);
     await _prefs.setInt(_keySaveHpLevel, hpLevel);
     await _prefs.setInt(_keySaveAtkLevel, atkLevel);
@@ -166,10 +170,27 @@ class SaveManager {
     await _prefs.remove(_keyAttackInterval);
     await _prefs.remove(_keyUltCooldownCurrent);
     await _prefs.remove(_keyAssistCooldownCurrent);
+    await _prefs.remove(_keyUltTicketCount);
+    await _prefs.remove(_keyAssistTicketCount);
     await _prefs.remove(_keyKills);
     await _prefs.remove(_keySaveHpLevel);
     await _prefs.remove(_keySaveAtkLevel);
     await _prefs.remove(_keySaveSpdLevel);
+  }
+
+  /// 과거 버전에서 새 게임까지 번지던 강화 레벨 캐시를 정리한다.
+  /// 잠금 해제 캐릭터 목록은 유지하고, HP/ATK/SPD 레벨만 초기화한다.
+  Future<void> clearCachedUpgradeLevels() async {
+    final global = loadGlobalData();
+    await saveGlobalData(
+      coffeeBeans: global.coffeeBeans,
+      hpLevel: 0,
+      atkLevel: 0,
+      spdLevel: 0,
+      unlockedCharacters: global.unlockedCharacters
+          .map((character) => character.name)
+          .toList(),
+    );
   }
 
   /// 저장 요약 텍스트 (UI 표시용)
@@ -202,11 +223,13 @@ class SaveManager {
       maxHp: _prefs.getDouble(_keyMaxHp) ?? 200,
       attackPower: _prefs.getDouble(_keyAttackPower) ?? 10,
       speed: _prefs.getDouble(_keySpeed) ?? 100,
-      multiShotCount: _prefs.getInt(_keyMultiShot) ?? 3,
+      multiShotCount: _prefs.getInt(_keyMultiShot) ?? 4,
       attackInterval:
           _prefs.getDouble(_keyAttackInterval) ?? defaultAttackInterval,
       ultCooldownCurrent: _prefs.getDouble(_keyUltCooldownCurrent) ?? 0,
       assistCooldownCurrent: _prefs.getDouble(_keyAssistCooldownCurrent) ?? 0,
+      ultTicketCount: _prefs.getInt(_keyUltTicketCount) ?? 0,
+      assistTicketCount: _prefs.getInt(_keyAssistTicketCount) ?? 0,
     );
   }
 
@@ -269,6 +292,8 @@ class SaveData {
   double get attackInterval => playerSnapshot.attackInterval;
   double get ultCooldownCurrent => playerSnapshot.ultCooldownCurrent;
   double get assistCooldownCurrent => playerSnapshot.assistCooldownCurrent;
+  int get ultTicketCount => playerSnapshot.ultTicketCount;
+  int get assistTicketCount => playerSnapshot.assistTicketCount;
 }
 
 class PlayerSnapshot {
@@ -280,6 +305,8 @@ class PlayerSnapshot {
   final double attackInterval;
   final double ultCooldownCurrent;
   final double assistCooldownCurrent;
+  final int ultTicketCount;
+  final int assistTicketCount;
 
   const PlayerSnapshot({
     required this.hp,
@@ -290,6 +317,8 @@ class PlayerSnapshot {
     required this.attackInterval,
     required this.ultCooldownCurrent,
     required this.assistCooldownCurrent,
+    required this.ultTicketCount,
+    required this.assistTicketCount,
   });
 
   Map<String, dynamic> toJson() => {
@@ -301,6 +330,8 @@ class PlayerSnapshot {
     'attackInterval': attackInterval,
     'ultCooldownCurrent': ultCooldownCurrent,
     'assistCooldownCurrent': assistCooldownCurrent,
+    'ultTicketCount': ultTicketCount,
+    'assistTicketCount': assistTicketCount,
   };
 
   factory PlayerSnapshot.fromJson(
@@ -312,7 +343,7 @@ class PlayerSnapshot {
       maxHp: (json['maxHp'] as num?)?.toDouble() ?? 200,
       attackPower: (json['attackPower'] as num?)?.toDouble() ?? 10,
       speed: (json['speed'] as num?)?.toDouble() ?? 100,
-      multiShotCount: (json['multiShotCount'] as num?)?.toInt() ?? 3,
+      multiShotCount: (json['multiShotCount'] as num?)?.toInt() ?? 4,
       attackInterval:
           (json['attackInterval'] as num?)?.toDouble() ??
           fallbackAttackInterval,
@@ -320,6 +351,8 @@ class PlayerSnapshot {
           (json['ultCooldownCurrent'] as num?)?.toDouble() ?? 0,
       assistCooldownCurrent:
           (json['assistCooldownCurrent'] as num?)?.toDouble() ?? 0,
+      ultTicketCount: (json['ultTicketCount'] as num?)?.toInt() ?? 0,
+      assistTicketCount: (json['assistTicketCount'] as num?)?.toInt() ?? 0,
     );
   }
 }

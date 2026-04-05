@@ -229,7 +229,9 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
         );
 
         // 보스 등장 경고 텍스트 표시
-        final warningText = TextComponent(
+        if (i == 0) {
+        if (i == 0) {
+          final warningText = TextComponent(
           text: '⚠️ MBTI 보스: ${characterData.name} 등장! ⚠️',
           position: game.player.position.clone()..y -= 100,
           anchor: Anchor.center,
@@ -243,7 +245,9 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
             ),
           ),
         );
-        game.addTimedWorldComponent(warningText, lifetime: 3.0);
+          game.addTimedWorldComponent(warningText, lifetime: 3.0);
+        }
+        }
       }
     }
 

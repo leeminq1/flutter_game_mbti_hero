@@ -49,6 +49,12 @@ class WaveData {
       if (i >= 5) {
         totalEnemies -= ((i - 4) * 2).clamp(0, 12);
       }
+      if (i >= 10 && i < 20) {
+        totalEnemies += (2 + ((i - 10) ~/ 3)).clamp(2, 5);
+      }
+      if (i >= 21) {
+        totalEnemies -= (6 + (i - 21)).clamp(6, 12);
+      }
       if (isMbtiBossWave) {
         totalEnemies -= 6;
       } else if (isBossWave) {
@@ -94,7 +100,7 @@ class WaveData {
           enemies[EnemyType.bug] = (mobs * 0.2).toInt();
           enemies[EnemyType.charger] = (mobs * 0.15)
               .toInt(); // 0.3→0.15 (50% 감소)
-        } else {
+        } else if (i < 10) {
           // 강한 적 비율 완화 (sniper/tanker/stapler/sharp 줄임)
           enemies[EnemyType.slime] = (mobs * 0.15).toInt();
           enemies[EnemyType.bat] = (mobs * 0.15).toInt();
@@ -105,6 +111,24 @@ class WaveData {
           enemies[EnemyType.bug] = (mobs * 0.15).toInt();
           enemies[EnemyType.stapler] = (mobs * 0.08).toInt();
           enemies[EnemyType.sharp] = (mobs * 0.10).toInt();
+        } else if (i < 20) {
+          enemies[EnemyType.slime] = (mobs * 0.13).toInt();
+          enemies[EnemyType.bat] = (mobs * 0.12).toInt();
+          enemies[EnemyType.bug] = (mobs * 0.13).toInt();
+          enemies[EnemyType.charger] = (mobs * 0.10).toInt();
+          enemies[EnemyType.sniper] = (mobs * 0.12).toInt();
+          enemies[EnemyType.tanker] = (mobs * 0.10).toInt();
+          enemies[EnemyType.stapler] = (mobs * 0.10).toInt();
+          enemies[EnemyType.sharp] = (mobs * 0.11).toInt();
+        } else {
+          enemies[EnemyType.slime] = (mobs * 0.10).toInt();
+          enemies[EnemyType.bat] = (mobs * 0.10).toInt();
+          enemies[EnemyType.bug] = (mobs * 0.10).toInt();
+          enemies[EnemyType.charger] = (mobs * 0.11).toInt();
+          enemies[EnemyType.sniper] = (mobs * 0.13).toInt();
+          enemies[EnemyType.tanker] = (mobs * 0.10).toInt();
+          enemies[EnemyType.stapler] = (mobs * 0.11).toInt();
+          enemies[EnemyType.sharp] = (mobs * 0.13).toInt();
         }
       }
 

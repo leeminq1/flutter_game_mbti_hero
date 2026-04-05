@@ -40,6 +40,13 @@ class BaseEnemy extends PositionComponent
   double get radius => _collisionRadius;
   bool _registeredWithGame = false;
   bool _isDying = false;
+  late final String _bossHudId = '${type.name}_${identityHashCode(this)}';
+  static const double _globalThreatMultiplier = 1.2;
+  static const double _bossHpMultiplier = 2.0;
+  static const double _bossDamageMultiplier = 1.3;
+
+  @protected
+  String get bossHudId => _bossHudId;
 
   BaseEnemy({required this.type, required Vector2 position})
     : super(size: Vector2(64, 64), position: position, anchor: Anchor.center) {
@@ -58,13 +65,49 @@ class BaseEnemy extends PositionComponent
     final waveIndex = max(0, currentWave - 1);
     final waveMultiplier = 1.0 + (waveIndex * 0.045);
     final bossBonus = _isBoss ? 0.25 + ((waveIndex ~/ 5) * 0.05) : 0.0;
-    final lateWaveBonus = currentWave >= 5 ? 1.3 : 1.0;
-    final wave20SpikeBonus = currentWave >= 20 ? 1.3 : 1.0;
-    final hpMultiplier = (waveMultiplier + bossBonus) * lateWaveBonus;
+    final earlyHpRampBonus = _waveRampMultiplier(
+      currentWave,
+      startWave: 5,
+      endWave: 9,
+      maxBonus: 0.30,
+    );
+    final midHpRampBonus = _waveRampMultiplier(
+      currentWave,
+      startWave: 10,
+      endWave: 19,
+      maxBonus: 0.12,
+    );
+    final midDamageRampBonus = _waveRampMultiplier(
+      currentWave,
+      startWave: 12,
+      endWave: 19,
+      maxBonus: 0.08,
+    );
+    final lateRampBonus = _waveRampMultiplier(
+      currentWave,
+      startWave: 20,
+      endWave: 24,
+      maxBonus: 0.30,
+    );
+    final earlyWaveReliefMultiplier = currentWave <= 10 ? 0.9 : 1.0;
+    final bossHpMultiplier = _isBoss ? _bossHpMultiplier : 1.0;
+    final bossDamageMultiplier = _isBoss ? _bossDamageMultiplier : 1.0;
+    final hpMultiplier =
+        (waveMultiplier + bossBonus) *
+        earlyHpRampBonus *
+        midHpRampBonus *
+        lateRampBonus *
+        earlyWaveReliefMultiplier *
+        bossHpMultiplier;
 
-    maxHp *= hpMultiplier * wave20SpikeBonus;
+    maxHp *= hpMultiplier * _globalThreatMultiplier;
     currentHp = maxHp;
-    damage *= wave20SpikeBonus;
+    damage *=
+        midDamageRampBonus *
+        lateRampBonus *
+        earlyWaveReliefMultiplier *
+        _globalThreatMultiplier *
+        bossDamageMultiplier;
 
     if (_isBoss) {
       _nextQuoteTime = 8.0 + _random.nextDouble() * 4.0;
@@ -114,6 +157,23 @@ class BaseEnemy extends PositionComponent
     _registerBoss();
   }
 
+  double _waveRampMultiplier(
+    int wave, {
+    required int startWave,
+    required int endWave,
+    required double maxBonus,
+  }) {
+    if (wave < startWave) {
+      return 1.0;
+    }
+    if (wave >= endWave) {
+      return 1.0 + maxBonus;
+    }
+
+    final progress = (wave - startWave + 1) / (endWave - startWave + 1);
+    return 1.0 + (maxBonus * progress);
+  }
+
   @override
   void onMount() {
     super.onMount();
@@ -149,7 +209,7 @@ class BaseEnemy extends PositionComponent
   void _registerBoss() {
     final bossTitle = definition.bossTitle;
     if (bossTitle != null) {
-      game.gameState.setBoss(bossTitle);
+      game.gameState.setBoss(bossTitle, id: bossHudId);
     }
   }
 
@@ -238,7 +298,7 @@ class BaseEnemy extends PositionComponent
 
     // 보스인 경우 UI 체력바 업데이트
     if (_isBoss) {
-      game.gameState.updateBossHp(currentHp / maxHp);
+      game.gameState.updateBossHp(currentHp / maxHp, id: bossHudId);
     }
 
     // PositionComponent에는 paint 속성이 없으므로 자식들을 반투명하게 만듦 (단순 구현)
@@ -274,7 +334,7 @@ class BaseEnemy extends PositionComponent
     );
     
     if (_isBoss) {
-      game.gameState.clearBoss();
+      game.gameState.clearBoss(id: bossHudId);
       // 보스 사망 시 모든 적 투사체 제거
       _clearEnemyProjectiles();
     }

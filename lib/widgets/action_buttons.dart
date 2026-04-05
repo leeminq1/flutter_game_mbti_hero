@@ -50,10 +50,10 @@ class _ActionOverlayState extends State<ActionOverlay>
     return Stack(
       children: [
         // === 좌측: 조이스틱 ===
-        Positioned(left: 40, bottom: 150, child: _buildJoystick()),
+        Positioned(left: 40, bottom: 150, child: _buildActionButtons()),
 
         // === 우측: 공격/필살기 버튼 ===
-        Positioned(right: 40, bottom: 150, child: _buildActionButtons()),
+        Positioned(right: 40, bottom: 150, child: _buildJoystick()),
 
         // === 우측 중단: 일시정지 버튼 (Wave 정보 아래) ===
         Positioned(right: 16, top: 70, child: _buildPauseButton()),
@@ -148,6 +148,7 @@ class _ActionOverlayState extends State<ActionOverlay>
     final isReady = gs.isAssistReady;
     final cooldownRatio = gs.assistCooldownRatio;
     final companionColor = gs.companionData.color;
+    final assistTicketCount = gs.assistTicketCount;
 
     return GestureDetector(
       onTap: () {
@@ -218,6 +219,12 @@ class _ActionOverlayState extends State<ActionOverlay>
                   ),
                 ],
               ),
+              if (assistTicketCount > 0)
+                Positioned(
+                  right: 2,
+                  top: 2,
+                  child: _buildChargeBadge(assistTicketCount),
+                ),
             ],
           ),
         ),
@@ -226,9 +233,11 @@ class _ActionOverlayState extends State<ActionOverlay>
   }
 
   Widget _buildUltButton() {
-    final isReady = widget.game.gameState.isUltReady;
-    final cooldownRatio = widget.game.gameState.ultCooldownRatio;
-    final color = widget.game.gameState.characterData.color;
+    final gs = widget.game.gameState;
+    final isReady = gs.isUltReady;
+    final cooldownRatio = gs.ultCooldownRatio;
+    final color = gs.characterData.color;
+    final ultTicketCount = gs.ultTicketCount;
 
     return GestureDetector(
       onTap: () {
@@ -283,7 +292,7 @@ class _ActionOverlayState extends State<ActionOverlay>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    widget.game.gameState.characterData.iconEmoji,
+                    gs.characterData.iconEmoji,
                     style: TextStyle(
                       fontSize: 24,
                       color: isReady ? Colors.white : Colors.white24,
@@ -299,6 +308,12 @@ class _ActionOverlayState extends State<ActionOverlay>
                   ),
                 ],
               ),
+              if (ultTicketCount > 0)
+                Positioned(
+                  right: 3,
+                  top: 3,
+                  child: _buildChargeBadge(ultTicketCount),
+                ),
             ],
           ),
         ),
@@ -328,6 +343,25 @@ class _ActionOverlayState extends State<ActionOverlay>
             border: Border.all(color: Colors.white24),
           ),
           child: const Icon(Icons.pause, color: Colors.white70, size: 20),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChargeBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.8)),
+      ),
+      child: Text(
+        'x$count',
+        style: const TextStyle(
+          color: Colors.amberAccent,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

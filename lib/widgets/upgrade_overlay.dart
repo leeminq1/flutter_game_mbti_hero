@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../game/mbti_game.dart';
-import '../game/components/player.dart';
 
-/// 보스 처치 후 강화 오버레이
+import '../game/components/player.dart';
+import '../game/mbti_game.dart';
+
 class UpgradeOverlay extends StatefulWidget {
   final MbtiGame game;
 
@@ -22,7 +22,10 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
   int draftSpd = 0;
   int spentBeans = 0;
 
-  final int maxLevel = 7;
+  final int maxLevel = 10;
+  static const int _healCost = 180;
+  static const int _ultPassCost = 260;
+  static const int _assistPassCost = 220;
 
   @override
   void initState() {
@@ -33,10 +36,14 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
     baseSpd = gs.speedLevel;
   }
 
-  // 강화 비용: (레벨 + 1) * 100 (기존 50에서 2배 증가)
-  int _upgradeCost(int level) => (level + 1) * 100;
+  int _upgradeCost(int level) => (level + 1) * 200;
 
   int get currentBeans => widget.game.gameState.coffeeBeans - spentBeans;
+  bool get _canBuyHeal =>
+      currentBeans >= _healCost &&
+      widget.game.player.currentHp < widget.game.player.maxHp - 0.5;
+  bool get _canBuyUltTicket => currentBeans >= _ultPassCost;
+  bool get _canBuyAssistTicket => currentBeans >= _assistPassCost;
 
   void _increment(String type) {
     int currentTotal;
@@ -112,24 +119,46 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
     }
   }
 
+  void _buyHeal() {
+    if (!_canBuyHeal) return;
+    widget.game.gameState.spendCoffeeBeans(_healCost);
+    widget.game.player.heal(widget.game.player.maxHp * 0.45);
+    widget.game.autoSave();
+    setState(() {});
+  }
+
+  void _buyUltPass() {
+    if (!_canBuyUltTicket) return;
+    widget.game.gameState.spendCoffeeBeans(_ultPassCost);
+    widget.game.gameState.addUltTicket();
+    widget.game.autoSave();
+    setState(() {});
+  }
+
+  void _buyAssistPass() {
+    if (!_canBuyAssistTicket) return;
+    widget.game.gameState.spendCoffeeBeans(_assistPassCost);
+    widget.game.gameState.addAssistTicket();
+    widget.game.autoSave();
+    setState(() {});
+  }
+
   void _applyAndContinue() {
     final gs = widget.game.gameState;
 
-    // 실제 비용 지불
     if (spentBeans > 0) {
       gs.spendCoffeeBeans(spentBeans);
     }
 
-    // HP 적용
     if (draftHp > 0) {
       for (int i = 0; i < draftHp; i++) {
         gs.upgradeHp();
       }
-      final hpBonus = Player.hpUpgradePerLevel * draftHp;
-      widget.game.player.applyPermanentHpUpgrade(hpBonus);
+      widget.game.player.applyPermanentHpUpgrade(
+        Player.hpUpgradePerLevel * draftHp,
+      );
     }
 
-    // ATK 적용
     if (draftAtk > 0) {
       for (int i = 0; i < draftAtk; i++) {
         gs.upgradeAttack();
@@ -139,7 +168,6 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
       );
     }
 
-    // SPD 적용
     if (draftSpd > 0) {
       for (int i = 0; i < draftSpd; i++) {
         gs.upgradeSpeed();
@@ -149,24 +177,10 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
       );
     }
 
-    if (spentBeans > 0) {
-      _saveGlobal();
-    }
+    widget.game.autoSave();
 
     widget.game.overlays.remove('Upgrade');
     widget.game.resumeGameplayIfAllowed(reason: 'upgrade_overlay');
-  }
-
-  void _saveGlobal() {
-    widget.game.saveManager?.saveGlobalData(
-      coffeeBeans: widget.game.gameState.coffeeBeans,
-      hpLevel: widget.game.gameState.hpLevel,
-      atkLevel: widget.game.gameState.attackLevel,
-      spdLevel: widget.game.gameState.speedLevel,
-      unlockedCharacters: widget.game.gameState.unlockedCharacters
-          .map((c) => c.name)
-          .toList(),
-    );
   }
 
   @override
@@ -192,119 +206,165 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 타이틀
-              const Icon(Icons.star, color: Colors.amber, size: 40),
-              const SizedBox(height: 8),
-              const Text(
-                '보스 처치!',
-                style: TextStyle(
-                  color: Colors.amber,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.star, color: Colors.amber, size: 40),
+                const SizedBox(height: 8),
+                const Text(
+                  '보스 처치!',
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                '커피콩을 분배하여 능력을 강화하세요',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-
-              // 보유 커피
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+                const SizedBox(height: 6),
+                const Text(
+                  '전투 중 아이템 강화와 별개로,\n아래는 현재 플레이의 보스 보상 강화입니다.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                  textAlign: TextAlign.center,
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('☕', style: TextStyle(fontSize: 18)),
-                    const SizedBox(width: 8),
-                    Text(
-                      '$currentBeans',
-                      style: const TextStyle(
-                        color: Colors.amber,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // 강화 항목들
-              _buildUpgradeRow(
-                icon: Icons.favorite,
-                label: 'HP',
-                baseLevel: baseHp,
-                draftLevel: draftHp,
-                color: Colors.redAccent,
-                onMinus: () => _decrement('hp'),
-                onPlus: () => _increment('hp'),
-              ),
-              const SizedBox(height: 8),
-              _buildUpgradeRow(
-                icon: Icons.flash_on,
-                label: 'ATK',
-                baseLevel: baseAtk,
-                draftLevel: draftAtk,
-                color: Colors.orangeAccent,
-                onMinus: () => _decrement('atk'),
-                onPlus: () => _increment('atk'),
-              ),
-              const SizedBox(height: 8),
-              _buildUpgradeRow(
-                icon: Icons.speed,
-                label: 'SPD',
-                baseLevel: baseSpd,
-                draftLevel: draftSpd,
-                color: Colors.lightBlueAccent,
-                onMinus: () => _decrement('spd'),
-                onPlus: () => _increment('spd'),
-              ),
-
-              const SizedBox(height: 24),
-
-              // 계속하기 버튼 (적용)
-              GestureDetector(
-                onTap: _applyAndContinue,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.green.withValues(alpha: 0.3),
-                        blurRadius: 10,
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.local_cafe_rounded,
+                        color: Color(0xFFEAD7A1),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$currentBeans',
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
-                  child: Center(
-                    child: Text(
-                      spentBeans > 0 ? '적용 및 계속하기' : '게임으로 돌아가기',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                ),
+                const SizedBox(height: 16),
+                _buildUpgradeRow(
+                  icon: Icons.favorite,
+                  label: 'HP',
+                  baseLevel: baseHp,
+                  draftLevel: draftHp,
+                  color: Colors.redAccent,
+                  onMinus: () => _decrement('hp'),
+                  onPlus: () => _increment('hp'),
+                ),
+                const SizedBox(height: 8),
+                _buildUpgradeRow(
+                  icon: Icons.flash_on,
+                  label: 'ATK',
+                  baseLevel: baseAtk,
+                  draftLevel: draftAtk,
+                  color: Colors.orangeAccent,
+                  onMinus: () => _decrement('atk'),
+                  onPlus: () => _increment('atk'),
+                ),
+                const SizedBox(height: 8),
+                _buildUpgradeRow(
+                  icon: Icons.speed,
+                  label: 'SPD',
+                  baseLevel: baseSpd,
+                  draftLevel: draftSpd,
+                  color: Colors.lightBlueAccent,
+                  onMinus: () => _decrement('spd'),
+                  onPlus: () => _increment('spd'),
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '긴급 지원',
+                    style: TextStyle(
+                      color: Colors.amber.shade200,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildUtilityButton(
+                  icon: Icons.favorite,
+                  label: '응급 회복',
+                  description: widget.game.player.currentHp >=
+                          widget.game.player.maxHp - 0.5
+                      ? '체력이 이미 MAX입니다'
+                      : '현재 체력 45% 회복',
+                  cost: _healCost,
+                  color: Colors.greenAccent,
+                  enabled: _canBuyHeal,
+                  onTap: _buyHeal,
+                ),
+                const SizedBox(height: 8),
+                _buildUtilityButton(
+                  icon: Icons.bolt,
+                  label: 'ULT 이용권',
+                  description: '필살기를 쿨다운과 무관하게 1회 사용',
+                  cost: _ultPassCost,
+                  color: Colors.orangeAccent,
+                  enabled: _canBuyUltTicket,
+                  ownedCount: widget.game.gameState.ultTicketCount,
+                  onTap: _buyUltPass,
+                ),
+                const SizedBox(height: 8),
+                _buildUtilityButton(
+                  icon: Icons.groups_2,
+                  label: 'ASSIST 이용권',
+                  description: '동료 호출을 쿨다운과 무관하게 1회 사용',
+                  cost: _assistPassCost,
+                  color: Colors.cyanAccent,
+                  enabled: _canBuyAssistTicket,
+                  ownedCount: widget.game.gameState.assistTicketCount,
+                  onTap: _buyAssistPass,
+                ),
+                const SizedBox(height: 24),
+                GestureDetector(
+                  onTap: _applyAndContinue,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        spentBeans > 0 ? '적용 후 계속하기' : '게임으로 돌아가기',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -348,15 +408,26 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
                     fontSize: 16,
                   ),
                 ),
-                Text(
-                  isMax ? 'MAX' : '비용: ☕ $cost',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.local_cafe_rounded,
+                      size: 13,
+                      color: Color(0xFFEAD7A1),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isMax ? 'MAX' : '$cost',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-
-          // 마이너스 버튼
           IconButton(
             onPressed: draftLevel > 0 ? onMinus : null,
             icon: const Icon(Icons.remove_circle_outline),
@@ -365,8 +436,6 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
-
-          // 현재 레벨 표시
           Container(
             width: 44,
             alignment: Alignment.center,
@@ -379,8 +448,6 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
               ),
             ),
           ),
-
-          // 플러스 버튼
           IconButton(
             onPressed: (canAfford && !isMax) ? onPlus : null,
             icon: const Icon(Icons.add_circle_outline),
@@ -390,6 +457,143 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
             constraints: const BoxConstraints(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUtilityButton({
+    required IconData icon,
+    required String label,
+    required String description,
+    required int cost,
+    required Color color,
+    required bool enabled,
+    int ownedCount = 0,
+    required VoidCallback onTap,
+  }) {
+    final canAfford = currentBeans >= cost && enabled;
+    final isDisabled = !enabled;
+
+    return GestureDetector(
+      onTap: canAfford ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDisabled
+              ? Colors.white.withValues(alpha: 0.04)
+              : color.withValues(alpha: canAfford ? 0.12 : 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDisabled
+                ? Colors.white12
+                : canAfford
+                ? color.withValues(alpha: 0.45)
+                : Colors.white24,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isDisabled
+                  ? Colors.white24
+                  : canAfford
+                  ? color
+                  : Colors.white38,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isDisabled
+                          ? Colors.white38
+                          : canAfford
+                          ? Colors.white
+                          : Colors.white54,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: isDisabled ? Colors.white38 : Colors.white70,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isDisabled)
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  '불가',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            if (isDisabled)
+              Container(
+                margin: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: const Text(
+                  'MAX',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            else ...[
+              if (ownedCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text(
+                    'x$ownedCount',
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              const Icon(
+                Icons.local_cafe_rounded,
+                size: 14,
+                color: Color(0xFFEAD7A1),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '$cost',
+                style: TextStyle(
+                  color: canAfford ? Colors.amber : Colors.white38,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

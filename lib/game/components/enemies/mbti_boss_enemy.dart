@@ -10,10 +10,14 @@ import '../projectiles/base_projectile.dart';
 import 'base_enemy.dart';
 
 class MbtiBossEnemy extends BaseEnemy {
+  static const List<int> _basicBurstPattern = [1, 1, 5];
+  static const double _basicAttackRateBoost = 1.2;
+
   final CharacterData characterData;
   double _ultTimer = 0;
   double _mbtiAttackTimer = 0;
   final Random _mbtiRandom = Random();
+  int _basicBurstIndex = 0;
 
   int get _activeProjectileLoad => game.activeProjectiles.length;
 
@@ -37,13 +41,13 @@ class MbtiBossEnemy extends BaseEnemy {
   }
 
   MbtiBossEnemy({
-    required Vector2 position,
+    required super.position,
     required this.characterData,
     double playerAttack = 15,
     double playerSpeed = 150,
     double playerMaxHp = 80,
     int waveNumber = 5,
-  }) : super(type: EnemyType.mbtiBoss, position: position) {
+  }) : super(type: EnemyType.mbtiBoss) {
     final mult = getWaveMultiplier(waveNumber);
     maxHp = playerMaxHp * (2.0 + mult * 2.0);
     currentHp = maxHp;
@@ -103,7 +107,7 @@ class MbtiBossEnemy extends BaseEnemy {
     _mbtiAttackTimer += dt;
     final loadMultiplier = _attackLoadMultiplier();
 
-    if (_mbtiAttackTimer >= attackCooldown * loadMultiplier) {
+    if (_mbtiAttackTimer >= attackCooldown / _basicAttackRateBoost) {
       _mbtiAttackTimer = 0;
       _fireMbtiBasicAttack(player);
     }
@@ -116,36 +120,51 @@ class MbtiBossEnemy extends BaseEnemy {
 
   void _fireMbtiBasicAttack(Player player) {
     final pDir = (player.position - position).normalized();
-    final aimedBurstCount = _loadAdjustedCount(2, minimum: 1);
+    final aimedBurstCount = _basicBurstPattern[_basicBurstIndex];
+    _basicBurstIndex = (_basicBurstIndex + 1) % _basicBurstPattern.length;
     final visual = _visualForAttack(characterData.attackType);
 
     switch (characterData.attackType) {
       case AttackType.wave:
       case AttackType.aura:
       case AttackType.shield:
-        _spawnProjectile(pDir, 100, damage, 30, visual.color, visual.emoji);
+        _fireAimedBurstProjectiles(
+          baseDirection: pDir,
+          count: aimedBurstCount,
+          projectileSpeed: 100,
+          projectileDamage: damage,
+          radius: 30,
+          color: visual.color,
+          emoji: visual.emoji,
+          spread: 0.16,
+        );
         break;
       case AttackType.homing:
-        final spread = aimedBurstCount == 1 ? 0.0 : 0.24;
-        final start = -spread * (aimedBurstCount - 1) / 2;
-        for (int i = 0; i < aimedBurstCount; i++) {
-          final angle = atan2(pDir.y, pDir.x) + start + (i * spread);
-          _spawnProjectile(
-            Vector2(cos(angle), sin(angle)),
-            150,
-            damage * 0.7,
-            12,
-            visual.color,
-            visual.emoji,
-          );
-        }
+        _fireAimedBurstProjectiles(
+          baseDirection: pDir,
+          count: aimedBurstCount,
+          projectileSpeed: 150,
+          projectileDamage: damage * 0.7,
+          radius: 12,
+          color: visual.color,
+          emoji: visual.emoji,
+          spread: 0.24,
+        );
         break;
       case AttackType.straight:
-        _spawnProjectile(pDir, 250, damage * 1.5, 12, visual.color, visual.emoji);
+        _fireAimedBurstProjectiles(
+          baseDirection: pDir,
+          count: aimedBurstCount,
+          projectileSpeed: 250,
+          projectileDamage: damage * 1.5,
+          radius: 12,
+          color: visual.color,
+          emoji: visual.emoji,
+          spread: 0.13,
+        );
         break;
       case AttackType.rapid:
-        final rapidBurstCount = _loadAdjustedCount(2, minimum: 1);
-        for (int i = 0; i < rapidBurstCount; i++) {
+        for (int i = 0; i < aimedBurstCount; i++) {
           final offset = Vector2(
             (_mbtiRandom.nextDouble() - 0.5) * 0.35,
             (_mbtiRandom.nextDouble() - 0.5) * 0.35,
@@ -161,11 +180,55 @@ class MbtiBossEnemy extends BaseEnemy {
         }
         break;
       case AttackType.summon:
-        _spawnProjectile(pDir, 120, damage, 15, visual.color, visual.emoji);
+        _fireAimedBurstProjectiles(
+          baseDirection: pDir,
+          count: aimedBurstCount,
+          projectileSpeed: 120,
+          projectileDamage: damage,
+          radius: 15,
+          color: visual.color,
+          emoji: visual.emoji,
+          spread: 0.18,
+        );
         break;
       case AttackType.blink:
-        _spawnProjectile(pDir, 300, damage * 1.2, 10, visual.color, visual.emoji);
+        _fireAimedBurstProjectiles(
+          baseDirection: pDir,
+          count: aimedBurstCount,
+          projectileSpeed: 300,
+          projectileDamage: damage * 1.2,
+          radius: 10,
+          color: visual.color,
+          emoji: visual.emoji,
+          spread: 0.11,
+        );
         break;
+    }
+  }
+
+  void _fireAimedBurstProjectiles({
+    required Vector2 baseDirection,
+    required int count,
+    required double projectileSpeed,
+    required double projectileDamage,
+    required double radius,
+    required Color color,
+    required String emoji,
+    required double spread,
+  }) {
+    final baseAngle = atan2(baseDirection.y, baseDirection.x);
+    final appliedSpread = count <= 1 ? 0.0 : spread;
+    final start = -appliedSpread * (count - 1) / 2;
+    for (int i = 0; i < count; i++) {
+      final angle = baseAngle + start + (i * appliedSpread);
+      _spawnProjectile(
+        Vector2(cos(angle), sin(angle)),
+        projectileSpeed,
+        projectileDamage,
+        radius,
+        color,
+        emoji,
+      );
     }
   }
 
@@ -299,8 +362,7 @@ class MbtiBossEnemy extends BaseEnemy {
       color: color,
       emoji: emoji,
       radius: radius,
-      useCheapVisual:
-          _activeProjectileLoad >= 32 || game.activeEnemies.length >= 20,
+      useCheapVisual: false,
     );
     bullet.add(TagComponent('enemy_projectile'));
     game.spawnProjectile(bullet);

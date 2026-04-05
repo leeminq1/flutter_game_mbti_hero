@@ -281,8 +281,9 @@ void _spawnEnemyProjectile(
     radius: radius,
     useCheapVisual:
         emoji == null ||
-        enemy.game.activeProjectiles.length >= 28 ||
-        enemy.game.activeEnemies.length >= 18,
+        (!enemy.isBoss &&
+            (enemy.game.activeProjectiles.length >= 28 ||
+                enemy.game.activeEnemies.length >= 18)),
   );
   bullet.add(TagComponent('enemy_projectile'));
   enemy.game.spawnProjectile(bullet);

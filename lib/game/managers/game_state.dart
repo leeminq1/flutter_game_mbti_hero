@@ -107,10 +107,13 @@ class GameState extends ChangeNotifier {
   double _assistCooldownMax = 30;
   double _assistCooldownCurrent = 0;
   int _assistCooldownBucket = 0;
+  int _assistTicketCount = 0;
 
   double get assistCooldownMax => _assistCooldownMax;
   double get assistCooldownCurrent => _assistCooldownCurrent;
-  bool get isAssistReady => _assistCooldownCurrent <= 0;
+  int get assistTicketCount => _assistTicketCount;
+  bool get hasAssistTicket => _assistTicketCount > 0;
+  bool get isAssistReady => _assistCooldownCurrent <= 0 || hasAssistTicket;
   double get assistCooldownRatio => _assistCooldownMax > 0
       ? (_assistCooldownCurrent / _assistCooldownMax).clamp(0.0, 1.0)
       : 0;
@@ -137,6 +140,20 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool consumeAssistTicket() {
+    if (_assistTicketCount <= 0) {
+      return false;
+    }
+    _assistTicketCount--;
+    notifyListeners();
+    return true;
+  }
+
+  void addAssistTicket([int count = 1]) {
+    _assistTicketCount += count;
+    notifyListeners();
+  }
+
   void tickAssistCooldown(double dt) {
     if (_assistCooldownCurrent > 0) {
       _assistCooldownCurrent = (_assistCooldownCurrent - dt).clamp(
@@ -160,6 +177,11 @@ class GameState extends ChangeNotifier {
       _assistCooldownCurrent,
       _assistCooldownMax,
     );
+    notifyListeners();
+  }
+
+  void syncAssistTickets(int count) {
+    _assistTicketCount = count.clamp(0, 99);
     notifyListeners();
   }
 
@@ -222,10 +244,13 @@ class GameState extends ChangeNotifier {
   double _ultCooldownMax = 25;
   double _ultCooldownCurrent = 0;
   int _ultCooldownBucket = 0;
+  int _ultTicketCount = 0;
 
   double get ultCooldownMax => _ultCooldownMax;
   double get ultCooldownCurrent => _ultCooldownCurrent;
-  bool get isUltReady => _ultCooldownCurrent <= 0;
+  int get ultTicketCount => _ultTicketCount;
+  bool get hasUltTicket => _ultTicketCount > 0;
+  bool get isUltReady => _ultCooldownCurrent <= 0 || hasUltTicket;
   double get ultCooldownRatio => _ultCooldownMax > 0
       ? (_ultCooldownCurrent / _ultCooldownMax).clamp(0.0, 1.0)
       : 0;
@@ -246,6 +271,20 @@ class GameState extends ChangeNotifier {
       _ultCooldownCurrent,
       _ultCooldownMax,
     );
+    notifyListeners();
+  }
+
+  bool consumeUltTicket() {
+    if (_ultTicketCount <= 0) {
+      return false;
+    }
+    _ultTicketCount--;
+    notifyListeners();
+    return true;
+  }
+
+  void addUltTicket([int count = 1]) {
+    _ultTicketCount += count;
     notifyListeners();
   }
 
@@ -278,6 +317,11 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void syncUltTickets(int count) {
+    _ultTicketCount = count.clamp(0, 99);
+    notifyListeners();
+  }
+
   // --- 게임 상태 ---
   bool _isGameOver = false;
   bool _isVictory = false;
@@ -305,29 +349,73 @@ class GameState extends ChangeNotifier {
   }
 
   // --- 보스 상태 ---
-  bool _bossActive = false;
-  String _bossName = '';
-  double _bossHpRatio = 1.0;
+  final List<BossStatus> _bossStatuses = [];
 
-  bool get bossActive => _bossActive;
-  String get bossName => _bossName;
-  double get bossHpRatio => _bossHpRatio;
+  bool get bossActive => _bossStatuses.isNotEmpty;
+  String get bossName => _bossStatuses.isNotEmpty ? _bossStatuses.first.name : '';
+  double get bossHpRatio => _bossStatuses.isNotEmpty ? _bossStatuses.first.hpRatio : 1.0;
+  List<BossStatus> get bossStatuses => List.unmodifiable(_bossStatuses);
 
-  void setBoss(String name) {
-    _bossActive = true;
-    _bossName = name;
-    _bossHpRatio = 1.0;
+  void setBoss(String name, {String? id}) {
+    final bossId = id ?? name;
+    final index = _bossStatuses.indexWhere((boss) => boss.id == bossId);
+    if (index >= 0) {
+      _bossStatuses[index] = BossStatus(
+        id: bossId,
+        name: name,
+        hpRatio: _bossStatuses[index].hpRatio,
+      );
+    } else {
+      _bossStatuses.add(BossStatus(id: bossId, name: name, hpRatio: 1.0));
+    }
     notifyListeners();
   }
 
-  void updateBossHp(double ratio) {
-    _bossHpRatio = ratio.clamp(0.0, 1.0);
+  void updateBossHp(double ratio, {String? id}) {
+    if (_bossStatuses.isEmpty) {
+      return;
+    }
+    final clampedRatio = ratio.clamp(0.0, 1.0).toDouble();
+    if (id == null) {
+      final first = _bossStatuses.first;
+      _bossStatuses[0] = BossStatus(
+        id: first.id,
+        name: first.name,
+        hpRatio: clampedRatio,
+      );
+      notifyListeners();
+      return;
+    }
+
+    final index = _bossStatuses.indexWhere((boss) => boss.id == id);
+    if (index < 0) {
+      return;
+    }
+
+    final current = _bossStatuses[index];
+    _bossStatuses[index] = BossStatus(
+      id: current.id,
+      name: current.name,
+      hpRatio: clampedRatio,
+    );
     notifyListeners();
   }
 
-  void clearBoss() {
-    _bossActive = false;
-    notifyListeners();
+  void clearBoss({String? id}) {
+    if (id == null) {
+      if (_bossStatuses.isEmpty) {
+        return;
+      }
+      _bossStatuses.clear();
+      notifyListeners();
+      return;
+    }
+
+    final before = _bossStatuses.length;
+    _bossStatuses.removeWhere((boss) => boss.id == id);
+    if (_bossStatuses.length != before) {
+      notifyListeners();
+    }
   }
 
   // --- 리셋 ---
@@ -338,6 +426,8 @@ class GameState extends ChangeNotifier {
     _enemiesRemaining = 0;
     _ultCooldownCurrent = 0;
     _assistCooldownCurrent = 0;
+    _ultTicketCount = 0;
+    _assistTicketCount = 0;
     _ultCooldownBucket = _cooldownBucket(_ultCooldownCurrent, _ultCooldownMax);
     _assistCooldownBucket = _cooldownBucket(
       _assistCooldownCurrent,
@@ -346,7 +436,7 @@ class GameState extends ChangeNotifier {
     _isGameOver = false;
     _isVictory = false;
     _isPaused = false;
-    _bossActive = false;
+    _bossStatuses.clear();
     notifyListeners();
   }
 
@@ -356,6 +446,8 @@ class GameState extends ChangeNotifier {
     _enemiesRemaining = 0;
     _ultCooldownCurrent = 0;
     _assistCooldownCurrent = 0;
+    _ultTicketCount = 0;
+    _assistTicketCount = 0;
     _ultCooldownBucket = _cooldownBucket(_ultCooldownCurrent, _ultCooldownMax);
     _assistCooldownBucket = _cooldownBucket(
       _assistCooldownCurrent,
@@ -364,7 +456,7 @@ class GameState extends ChangeNotifier {
     _isGameOver = false;
     _isVictory = false;
     _isPaused = false;
-    _bossActive = false;
+    _bossStatuses.clear();
     notifyListeners();
   }
 
@@ -375,4 +467,16 @@ class GameState extends ChangeNotifier {
     return ((current / max).clamp(0.0, 1.0) * _cooldownNotifyBuckets)
         .round();
   }
+}
+
+class BossStatus {
+  final String id;
+  final String name;
+  final double hpRatio;
+
+  const BossStatus({
+    required this.id,
+    required this.name,
+    required this.hpRatio,
+  });
 }

@@ -91,17 +91,9 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       await images.load(char.assetPath);
     }
 
-    // 초기 상태 로드
-    if (saveManager != null) {
-      final globalData = saveManager!.loadGlobalData();
-      gameState.loadGlobalData(
-        globalData.coffeeBeans,
-        globalData.hpLevel,
-        globalData.attackLevel,
-        globalData.speedLevel,
-        globalData.unlockedCharacters,
-      );
-    }
+    // 새 게임/이어하기 시작 시의 상태는 HomeScreen에서 이미 주입한다.
+    // 여기서 전역 강화 레벨을 다시 읽어오면 삭제된 예전 플레이의
+    // HP/ATK/SPD 레벨이 새 게임에 되살아날 수 있으므로 재주입하지 않는다.
     // 맵 배경 (어두운 사무실 색상)
     await _ensureStaticWorld();
 
@@ -147,6 +139,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       gameState.syncHp(current: loadedSave!.hp, max: loadedSave!.maxHp);
       gameState.syncUltCooldown(loadedSave!.ultCooldownCurrent);
       gameState.syncAssistCooldown(loadedSave!.assistCooldownCurrent);
+      gameState.syncUltTickets(loadedSave!.ultTicketCount);
+      gameState.syncAssistTickets(loadedSave!.assistTicketCount);
       // 해당 웨이브부터 시작
       enemySpawner.startWave(loadedSave!.wave - 1);
     } else {
@@ -700,7 +694,6 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       case AttackType.shield:
         return _attackShield(attackingPlayer, enemies);
     }
-    return false;
   }
 
   /// ESTJ: 로 돌진하는 방패 (파란색 잔상) 🛡️
@@ -1275,8 +1268,14 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   // ═══ 동료 호출 (ASSIST) ═══
   // ══════════════════════════════════════════
   void performAssist() {
-    if (!gameState.isAssistReady) return;
-    gameState.useAssist();
+    if (!gameState.isAssistReady) {
+      return;
+    }
+    if (gameState.assistCooldownCurrent <= 0) {
+      gameState.useAssist();
+    } else if (!gameState.consumeAssistTicket()) {
+      return;
+    }
 
     final companionData = gameState.companionData;
     final multiplier = gameState.companionPowerMultiplier;
@@ -1567,6 +1566,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
         attackInterval: player.attackInterval,
         ultCooldownCurrent: gameState.ultCooldownCurrent,
         assistCooldownCurrent: gameState.assistCooldownCurrent,
+        ultTicketCount: gameState.ultTicketCount,
+        assistTicketCount: gameState.assistTicketCount,
       ),
       kills: 0,
       hpLevel: gameState.hpLevel,
@@ -1654,6 +1655,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     final backedAttackInterval = player.attackInterval;
     final backedUltCooldownCurrent = gameState.ultCooldownCurrent;
     final backedAssistCooldownCurrent = gameState.assistCooldownCurrent;
+    final backedUltTicketCount = gameState.ultTicketCount;
+    final backedAssistTicketCount = gameState.assistTicketCount;
 
     debugLog('[REVIVE] === BACKUP ===');
     debugLog(
@@ -1702,6 +1705,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     gameState.initAssistCooldown();
     gameState.syncUltCooldown(backedUltCooldownCurrent);
     gameState.syncAssistCooldown(backedAssistCooldownCurrent);
+    gameState.syncUltTickets(backedUltTicketCount);
+    gameState.syncAssistTickets(backedAssistTicketCount);
 
     debugLog(
       '[REVIVE] gameState maxHp=${gameState.maxHp}, currentHp=${gameState.currentHp}',
