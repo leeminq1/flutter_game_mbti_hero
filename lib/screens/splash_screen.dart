@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/ad_manager.dart';
 import '../services/audio_bootstrap.dart';
 import '../services/bgm_manager.dart';
+import '../services/leaderboard_repository.dart';
 import '../services/save_manager.dart';
 import '../services/sfx_manager.dart';
 import '../services/unlock_manager.dart';
@@ -12,12 +13,14 @@ class SplashScreen extends StatefulWidget {
   final UnlockManager unlockManager;
   final AdManager adManager;
   final SaveManager saveManager;
+  final LeaderboardRepository leaderboardRepository;
 
   const SplashScreen({
     super.key,
     required this.unlockManager,
     required this.adManager,
     required this.saveManager,
+    required this.leaderboardRepository,
   });
 
   @override
@@ -81,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _onTap() {
     if (!_canStart) return; // 3초 전에는 탭해도 아무 일도 안 일어남
-    
+
     SfxManager.playUi('sfx_button.ogg', volume: 0.5);
 
     Navigator.of(context).pushReplacement(
@@ -90,6 +93,7 @@ class _SplashScreenState extends State<SplashScreen>
           unlockManager: widget.unlockManager,
           adManager: widget.adManager,
           saveManager: widget.saveManager,
+          leaderboardRepository: widget.leaderboardRepository,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);

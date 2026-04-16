@@ -1,6 +1,7 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'game/config/character_data.dart';
 import 'game/mbti_game.dart';
 import 'screens/character_select.dart';
@@ -8,8 +9,10 @@ import 'screens/result_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/ad_manager.dart';
 import 'services/bgm_manager.dart';
+import 'services/leaderboard_repository.dart';
 import 'services/save_manager.dart';
 import 'services/sfx_manager.dart';
+import 'services/supabase_bootstrap.dart';
 import 'services/unlock_manager.dart';
 import 'widgets/action_buttons.dart';
 import 'widgets/hud_overlay.dart';
@@ -39,12 +42,21 @@ void main() async {
 
   final saveManager = SaveManager();
   await saveManager.init();
+  final supabaseReady = await SupabaseBootstrap.initializeIfConfigured();
+
+  final leaderboardRepository = LeaderboardRepository(
+    saveManager: saveManager,
+    remoteDataSource: supabaseReady
+        ? SupabaseLeaderboardRemoteDataSource(client: Supabase.instance.client)
+        : null,
+  );
 
   runApp(
     MbtiHeroApp(
       unlockManager: unlockManager,
       adManager: adManager,
       saveManager: saveManager,
+      leaderboardRepository: leaderboardRepository,
     ),
   );
 }
@@ -53,12 +65,14 @@ class MbtiHeroApp extends StatelessWidget {
   final UnlockManager unlockManager;
   final AdManager adManager;
   final SaveManager saveManager;
+  final LeaderboardRepository leaderboardRepository;
 
   const MbtiHeroApp({
     super.key,
     required this.unlockManager,
     required this.adManager,
     required this.saveManager,
+    required this.leaderboardRepository,
   });
 
   @override
@@ -73,6 +87,7 @@ class MbtiHeroApp extends StatelessWidget {
         unlockManager: unlockManager,
         adManager: adManager,
         saveManager: saveManager,
+        leaderboardRepository: leaderboardRepository,
       ),
     );
   }
@@ -82,12 +97,14 @@ class HomeScreen extends StatefulWidget {
   final UnlockManager unlockManager;
   final AdManager adManager;
   final SaveManager saveManager;
+  final LeaderboardRepository leaderboardRepository;
 
   const HomeScreen({
     super.key,
     required this.unlockManager,
     required this.adManager,
     required this.saveManager,
+    required this.leaderboardRepository,
   });
 
   @override
@@ -312,6 +329,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onSelect: _startGame,
         onUnlockRequest: _handleUnlockRequest,
         saveManager: widget.saveManager,
+        leaderboardRepository: widget.leaderboardRepository,
         onContinue: _continueGame,
       );
     }
@@ -324,21 +342,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           GameWidget(
             game: _game!,
             overlayBuilderMap: {
-              'HUD': (context, game) =>
-                  HudOverlay(
-                    gameState: (game as MbtiGame).gameState,
-                    game: game,
-                  ),
+              'HUD': (context, game) => HudOverlay(
+                gameState: (game as MbtiGame).gameState,
+                game: game,
+              ),
               'Actions': (context, game) =>
                   ActionOverlay(game: game as MbtiGame),
               'GameOver': (context, game) => ResultOverlay(
                 game: game as MbtiGame,
+                leaderboardRepository: widget.leaderboardRepository,
                 isVictory: false,
                 onRetry: _retryGame,
                 onLobby: _returnToLobby,
               ),
               'Victory': (context, game) => ResultOverlay(
                 game: game as MbtiGame,
+                leaderboardRepository: widget.leaderboardRepository,
                 isVictory: true,
                 onRetry: _retryGame,
                 onLobby: _returnToLobby,

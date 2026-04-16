@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../game/config/character_data.dart';
+import 'leaderboard_types.dart';
 
 /// 게임 진행 저장/불러오기 관리
 class SaveManager {
@@ -34,12 +35,18 @@ class SaveManager {
 
   // 리더보드 키
   static const String _keyLeaderboard = 'leaderboard_entries';
-  static const int _maxLeaderboardEntries = 50;
-  static final List<String> _defaultUnlockedCharacterNames = CharacterType.values
+  static const int maxLeaderboardEntries = 50;
+  static final List<String> _defaultUnlockedCharacterNames = CharacterType
+      .values
       .map((type) => type.name)
       .toList(growable: false);
 
   late SharedPreferences _prefs;
+
+  static String trimLeaderboardName(String name) => name.trim();
+
+  static String normalizeLeaderboardName(String name) =>
+      trimLeaderboardName(name).toLowerCase();
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -63,7 +70,10 @@ class SaveManager {
     await _prefs.setString(_keyCharacter, character.name);
     await _prefs.setString(_keyCompanion, companion.name);
     await _prefs.setInt(_keyWave, wave);
-    await _prefs.setString(_keyPlayerSnapshot, jsonEncode(playerSnapshot.toJson()));
+    await _prefs.setString(
+      _keyPlayerSnapshot,
+      jsonEncode(playerSnapshot.toJson()),
+    );
     await _prefs.setDouble(_keyHp, playerSnapshot.hp);
     await _prefs.setDouble(_keyMaxHp, playerSnapshot.maxHp);
     await _prefs.setDouble(_keyAttackPower, playerSnapshot.attackPower);
@@ -79,7 +89,10 @@ class SaveManager {
       playerSnapshot.assistCooldownCurrent,
     );
     await _prefs.setInt(_keyUltTicketCount, playerSnapshot.ultTicketCount);
-    await _prefs.setInt(_keyAssistTicketCount, playerSnapshot.assistTicketCount);
+    await _prefs.setInt(
+      _keyAssistTicketCount,
+      playerSnapshot.assistTicketCount,
+    );
     await _prefs.setInt(_keyKills, kills);
     await _prefs.setInt(_keySaveHpLevel, hpLevel);
     await _prefs.setInt(_keySaveAtkLevel, atkLevel);
@@ -134,10 +147,7 @@ class SaveManager {
     final chars =
         _prefs.getStringList(_keyUnlockedChars) ??
         _defaultUnlockedCharacterNames;
-    final mergedChars = {
-      ..._defaultUnlockedCharacterNames,
-      ...chars,
-    };
+    final mergedChars = {..._defaultUnlockedCharacterNames, ...chars};
 
     return GlobalSaveData(
       coffeeBeans: _prefs.getInt(_keyCoffeeBeans) ?? 0,
@@ -208,16 +218,18 @@ class SaveManager {
       try {
         return PlayerSnapshot.fromJson(
           jsonDecode(snapshotJson) as Map<String, dynamic>,
-          fallbackAttackInterval:
-              MbtiCharacters.getByType(character).baseAttackSpeed,
+          fallbackAttackInterval: MbtiCharacters.getByType(
+            character,
+          ).baseAttackSpeed,
         );
       } catch (_) {
         // Fall through to legacy field recovery.
       }
     }
 
-    final defaultAttackInterval =
-        MbtiCharacters.getByType(character).baseAttackSpeed;
+    final defaultAttackInterval = MbtiCharacters.getByType(
+      character,
+    ).baseAttackSpeed;
     return PlayerSnapshot(
       hp: _prefs.getDouble(_keyHp) ?? 200,
       maxHp: _prefs.getDouble(_keyMaxHp) ?? 200,
@@ -239,15 +251,21 @@ class SaveManager {
 
   /// 리더보드에 기록 추가
   Future<void> addLeaderboardEntry(LeaderboardEntry entry) async {
+    final sanitizedEntry = entry.copyWith(
+      playerName: trimLeaderboardName(entry.playerName),
+    );
     final entries = loadLeaderboard();
-    entries.add(entry);
-    entries.sort((a, b) {
-      final waveComp = b.wave.compareTo(a.wave);
-      if (waveComp != 0) return waveComp;
-      return b.score.compareTo(a.score);
-    });
-    if (entries.length > _maxLeaderboardEntries) {
-      entries.removeRange(_maxLeaderboardEntries, entries.length);
+    final normalizedName = normalizeLeaderboardName(sanitizedEntry.playerName);
+    final alreadyExists = entries.any(
+      (saved) => normalizeLeaderboardName(saved.playerName) == normalizedName,
+    );
+    if (alreadyExists) {
+      throw const LeaderboardDuplicateNameException();
+    }
+    entries.add(sanitizedEntry);
+    _sortLeaderboardEntries(entries);
+    if (entries.length > maxLeaderboardEntries) {
+      entries.removeRange(maxLeaderboardEntries, entries.length);
     }
     final jsonList = entries.map((e) => jsonEncode(e.toJson())).toList();
     await _prefs.setStringList(_keyLeaderboard, jsonList);
@@ -256,9 +274,21 @@ class SaveManager {
   /// 리더보드 데이터 불러오기
   List<LeaderboardEntry> loadLeaderboard() {
     final jsonList = _prefs.getStringList(_keyLeaderboard) ?? [];
-    return jsonList
+    final entries = jsonList
         .map((s) => LeaderboardEntry.fromJson(jsonDecode(s)))
         .toList();
+    _sortLeaderboardEntries(entries);
+    return entries;
+  }
+
+  void _sortLeaderboardEntries(List<LeaderboardEntry> entries) {
+    entries.sort((a, b) {
+      final waveComp = b.wave.compareTo(a.wave);
+      if (waveComp != 0) return waveComp;
+      final scoreComp = b.score.compareTo(a.score);
+      if (scoreComp != 0) return scoreComp;
+      return b.dateTime.compareTo(a.dateTime);
+    });
   }
 }
 
@@ -347,8 +377,7 @@ class PlayerSnapshot {
       attackInterval:
           (json['attackInterval'] as num?)?.toDouble() ??
           fallbackAttackInterval,
-      ultCooldownCurrent:
-          (json['ultCooldownCurrent'] as num?)?.toDouble() ?? 0,
+      ultCooldownCurrent: (json['ultCooldownCurrent'] as num?)?.toDouble() ?? 0,
       assistCooldownCurrent:
           (json['assistCooldownCurrent'] as num?)?.toDouble() ?? 0,
       ultTicketCount: (json['ultTicketCount'] as num?)?.toInt() ?? 0,
@@ -391,6 +420,24 @@ class LeaderboardEntry {
     required this.score,
     required this.dateTime,
   });
+
+  LeaderboardEntry copyWith({
+    String? playerName,
+    CharacterType? character,
+    CharacterType? companion,
+    int? wave,
+    int? score,
+    String? dateTime,
+  }) {
+    return LeaderboardEntry(
+      playerName: playerName ?? this.playerName,
+      character: character ?? this.character,
+      companion: companion ?? this.companion,
+      wave: wave ?? this.wave,
+      score: score ?? this.score,
+      dateTime: dateTime ?? this.dateTime,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'name': playerName,

@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../game/mbti_game.dart';
 import '../services/ad_manager.dart';
+import '../services/leaderboard_repository.dart';
+import '../services/leaderboard_types.dart';
 import '../services/save_manager.dart';
 
 class ResultOverlay extends StatefulWidget {
   final MbtiGame game;
+  final LeaderboardRepository leaderboardRepository;
   final bool isVictory;
   final VoidCallback onRetry;
   final VoidCallback onLobby;
@@ -15,6 +18,7 @@ class ResultOverlay extends StatefulWidget {
   const ResultOverlay({
     super.key,
     required this.game,
+    required this.leaderboardRepository,
     required this.isVictory,
     required this.onRetry,
     required this.onLobby,
@@ -39,6 +43,7 @@ class _ResultOverlayState extends State<ResultOverlay> {
 
   bool _adWatched = false;
   bool _watchingAd = false;
+  bool _savingRecord = false;
   bool _recordSaved = false;
   int _endingSceneIndex = 0;
   Timer? _endingSceneTimer;
@@ -59,7 +64,8 @@ class _ResultOverlayState extends State<ResultOverlay> {
     super.didUpdateWidget(oldWidget);
     final oldWasFinalClear =
         oldWidget.isVictory &&
-        oldWidget.game.gameState.currentWave >= oldWidget.game.gameState.totalWaves;
+        oldWidget.game.gameState.currentWave >=
+            oldWidget.game.gameState.totalWaves;
     if (oldWasFinalClear != _isFinalClear) {
       _configureEndingSequence();
       _precacheEndingScenes();
@@ -277,7 +283,9 @@ class _ResultOverlayState extends State<ResultOverlay> {
           else ...[
             if (!_recordSaved)
               GestureDetector(
-                onTap: () => _showSaveRecordDialog(context),
+                onTap: _savingRecord
+                    ? null
+                    : () => _showSaveRecordDialog(context),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -319,7 +327,11 @@ class _ResultOverlayState extends State<ResultOverlay> {
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.check_circle, color: Colors.greenAccent, size: 18),
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.greenAccent,
+                      size: 18,
+                    ),
                     SizedBox(width: 8),
                     Text(
                       '\uAE30\uB85D \uC800\uC7A5 \uC644\uB8CC',
@@ -486,20 +498,13 @@ class _ResultOverlayState extends State<ResultOverlay> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.red.shade800, width: 2),
         boxShadow: [
-          BoxShadow(
-            color: Colors.red.withValues(alpha: 0.3),
-            blurRadius: 30,
-          ),
+          BoxShadow(color: Colors.red.withValues(alpha: 0.3), blurRadius: 30),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.nightlight_round,
-            size: 56,
-            color: Colors.red.shade400,
-          ),
+          Icon(Icons.nightlight_round, size: 56, color: Colors.red.shade400),
           const SizedBox(height: 12),
           Text(
             '\uC57C\uADFC \uD655\uC815...',
@@ -550,17 +555,13 @@ class _ResultOverlayState extends State<ResultOverlay> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      _watchingAd
-                          ? Icons.hourglass_top
-                          : Icons.favorite,
+                      _watchingAd ? Icons.hourglass_top : Icons.favorite,
                       color: Colors.white,
                       size: 20,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _watchingAd
-                          ? '로딩 중...'
-                          : '무료로 부활하기',
+                      _watchingAd ? '로딩 중...' : '무료로 부활하기',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
@@ -574,7 +575,9 @@ class _ResultOverlayState extends State<ResultOverlay> {
             const SizedBox(height: 10),
             if (!_recordSaved)
               GestureDetector(
-                onTap: () => _showSaveRecordDialog(context),
+                onTap: _savingRecord
+                    ? null
+                    : () => _showSaveRecordDialog(context),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -616,10 +619,7 @@ class _ResultOverlayState extends State<ResultOverlay> {
                     SizedBox(width: 6),
                     Text(
                       '\uAE30\uB85D \uC800\uC7A5 \uC644\uB8CC!',
-                      style: TextStyle(
-                        color: Colors.greenAccent,
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: Colors.greenAccent, fontSize: 13),
                     ),
                   ],
                 ),
@@ -668,16 +668,14 @@ class _ResultOverlayState extends State<ResultOverlay> {
   Widget _buildFinalClearPrimaryAction(BuildContext context) {
     if (!_recordSaved) {
       return GestureDetector(
-        onTap: () => _showSaveRecordDialog(context),
+        onTap: _savingRecord ? null : () => _showSaveRecordDialog(context),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: Colors.cyan.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Colors.cyan.withValues(alpha: 0.35),
-            ),
+            border: Border.all(color: Colors.cyan.withValues(alpha: 0.35)),
           ),
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -707,6 +705,9 @@ class _ResultOverlayState extends State<ResultOverlay> {
   }
 
   void _showSaveRecordDialog(BuildContext context) {
+    if (_savingRecord || _recordSaved) {
+      return;
+    }
     final nameController = TextEditingController();
     showDialog(
       context: context,
@@ -804,6 +805,7 @@ class _ResultOverlayState extends State<ResultOverlay> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () async {
+                        if (_savingRecord || _recordSaved) return;
                         final name = nameController.text.trim();
                         if (name.isEmpty) return;
                         Navigator.pop(ctx);
@@ -950,36 +952,64 @@ class _ResultOverlayState extends State<ResultOverlay> {
   }
 
   Future<void> _saveRecord(String name) async {
-    final game = widget.game;
-    final saveManager = game.saveManager;
-    if (saveManager == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('\uAE30\uB85D \uC800\uC7A5\uC744 \uC900\uBE44\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.')),
-      );
+    if (_savingRecord || _recordSaved) {
       return;
     }
 
+    final trimmedName = SaveManager.trimLeaderboardName(name);
+    if (trimmedName.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(const SnackBar(content: Text('닉네임을 입력해 주세요.')));
+      return;
+    }
+
+    final game = widget.game;
+    setState(() => _savingRecord = true);
+
     try {
       final entry = LeaderboardEntry(
-        playerName: name,
+        playerName: trimmedName,
         character: game.gameState.selectedCharacter,
         companion: game.gameState.selectedCompanion,
         wave: game.gameState.currentWave,
         score: game.gameState.totalCoffeeEarned,
         dateTime: DateTime.now().toIso8601String(),
       );
-      await saveManager.addLeaderboardEntry(entry);
+
+      final result = await widget.leaderboardRepository.submitEntry(entry);
       if (!mounted) return;
-      setState(() => _recordSaved = true);
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('\uAE30\uB85D\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.')),
-      );
+
+      if (result.success) {
+        setState(() => _recordSaved = true);
+        final message = result.source == LeaderboardSource.remote
+            ? '온라인 랭킹에 저장되었습니다.'
+            : '네트워크 문제로 로컬 랭킹에만 저장되었습니다.';
+        ScaffoldMessenger.maybeOf(
+          context,
+        )?.showSnackBar(SnackBar(content: Text(message)));
+        return;
+      }
+
+      final message = switch (result.failureReason) {
+        LeaderboardFailureReason.duplicate => '이미 사용 중인 닉네임입니다.',
+        LeaderboardFailureReason.network => '네트워크 문제로 저장하지 못했습니다.',
+        LeaderboardFailureReason.config => '로컬 랭킹 저장에도 실패했습니다.',
+        _ => '기록 저장에 실패했습니다.',
+      };
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text(message)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('\uAE30\uB85D \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.')),
-      );
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(const SnackBar(content: Text('기록 저장에 실패했습니다.')));
+    } finally {
+      if (mounted) {
+        setState(() => _savingRecord = false);
+      }
     }
   }
 

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../game/config/character_data.dart';
 import '../game/config/mbti_compatibility.dart';
+import '../services/leaderboard_repository.dart';
 import '../services/save_manager.dart';
 import '../services/sfx_manager.dart';
 import 'leaderboard_screen.dart';
@@ -14,6 +15,7 @@ class CharacterSelectScreen extends StatefulWidget {
   onSelect;
   final void Function(CharacterType) onUnlockRequest;
   final SaveManager? saveManager;
+  final LeaderboardRepository? leaderboardRepository;
   final void Function(SaveData saveData)? onContinue;
 
   const CharacterSelectScreen({
@@ -22,6 +24,7 @@ class CharacterSelectScreen extends StatefulWidget {
     required this.onSelect,
     required this.onUnlockRequest,
     this.saveManager,
+    this.leaderboardRepository,
     this.onContinue,
   });
 
@@ -459,12 +462,13 @@ class _CharacterSelectScreenState extends State<CharacterSelectScreen> {
               // 순위표 버튼
               GestureDetector(
                 onTap: () {
-                  if (widget.saveManager != null) {
+                  if (widget.leaderboardRepository != null) {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            LeaderboardScreen(saveManager: widget.saveManager!),
+                        builder: (_) => LeaderboardScreen(
+                          leaderboardRepository: widget.leaderboardRepository!,
+                        ),
                       ),
                     );
                   }
