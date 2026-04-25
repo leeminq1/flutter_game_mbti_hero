@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const _supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+const _supabaseInitializeTimeout = Duration(seconds: 5);
 
 class SupabaseBootstrap {
   const SupabaseBootstrap._();
@@ -19,7 +20,10 @@ class SupabaseBootstrap {
     }
 
     try {
-      await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
+      await Supabase.initialize(
+        url: _supabaseUrl,
+        anonKey: _supabaseAnonKey,
+      ).timeout(_supabaseInitializeTimeout);
       _initialized = true;
       return true;
     } catch (_) {

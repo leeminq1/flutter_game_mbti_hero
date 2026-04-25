@@ -4,6 +4,8 @@ import '../game/config/character_data.dart';
 import 'leaderboard_types.dart';
 import 'save_manager.dart';
 
+const _leaderboardRemoteTimeout = Duration(seconds: 5);
+
 abstract class LeaderboardRemoteDataSource {
   Future<void> submitEntry(LeaderboardEntry entry);
 
@@ -19,17 +21,19 @@ class SupabaseLeaderboardRemoteDataSource
   @override
   Future<void> submitEntry(LeaderboardEntry entry) async {
     try {
-      await client.rpc(
-        'submit_leaderboard_entry',
-        params: {
-          'p_nickname': entry.playerName,
-          'p_character': entry.character.name,
-          'p_companion': entry.companion.name,
-          'p_wave': entry.wave,
-          'p_score': entry.score,
-          'p_created_at': entry.dateTime,
-        },
-      );
+      await client
+          .rpc(
+            'submit_leaderboard_entry',
+            params: {
+              'p_nickname': entry.playerName,
+              'p_character': entry.character.name,
+              'p_companion': entry.companion.name,
+              'p_wave': entry.wave,
+              'p_score': entry.score,
+              'p_created_at': entry.dateTime,
+            },
+          )
+          .timeout(_leaderboardRemoteTimeout);
     } on PostgrestException catch (error) {
       if (_isDuplicateError(error)) {
         throw const LeaderboardDuplicateNameException();
@@ -46,7 +50,8 @@ class SupabaseLeaderboardRemoteDataSource
         .order('wave', ascending: false)
         .order('score', ascending: false)
         .order('created_at', ascending: false)
-        .limit(SaveManager.maxLeaderboardEntries);
+        .limit(SaveManager.maxLeaderboardEntries)
+        .timeout(_leaderboardRemoteTimeout);
 
     return (rows as List<dynamic>)
         .map((row) {
