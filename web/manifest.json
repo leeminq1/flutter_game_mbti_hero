@@ -1,11 +1,11 @@
 {
-    "name": "flutter_game",
-    "short_name": "flutter_game",
+    "name": "MBTI 히어로: 직장인 생존기",
+    "short_name": "MBTI 히어로",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0A0A1A",
+    "theme_color": "#0A0A1A",
+    "description": "직장에서 살아남는 2D 생존 액션 게임",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
