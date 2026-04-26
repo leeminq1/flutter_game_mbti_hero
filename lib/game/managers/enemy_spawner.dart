@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
@@ -169,9 +170,9 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
   int _countEnemyProjectiles() {
     var count = 0;
     for (final projectile in game.activeProjectiles) {
-      final isEnemyProjectile = projectile.children.whereType<TagComponent>().any(
-        (tag) => tag.tag == 'enemy_projectile',
-      );
+      final isEnemyProjectile = projectile.children
+          .whereType<TagComponent>()
+          .any((tag) => tag.tag == 'enemy_projectile');
       if (isEnemyProjectile) {
         count++;
       }
@@ -195,7 +196,7 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
       minInterval: 0.4,
     );
     game.debugLogState('boss_spawn');
-    
+
     final isFinalBoss = (_currentWaveIndex + 1) == 30;
     final isMbtiBossWave = (_currentWaveIndex + 1) % 5 == 0 && !isFinalBoss;
     final isMidBossWave = (_currentWaveIndex + 1) % 3 == 0;
@@ -230,23 +231,23 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
 
         // 보스 등장 경고 텍스트 표시
         if (i == 0) {
-        if (i == 0) {
-          final warningText = TextComponent(
-          text: '⚠️ MBTI 보스: ${characterData.name} 등장! ⚠️',
-          position: game.player.position.clone()..y -= 100,
-          anchor: Anchor.center,
-          priority: 30,
-          textRenderer: TextPaint(
-            style: const TextStyle(
-              color: Colors.redAccent,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              shadows: [Shadow(color: Colors.black, blurRadius: 10)],
-            ),
-          ),
-        );
-          game.addTimedWorldComponent(warningText, lifetime: 3.0);
-        }
+          if (i == 0) {
+            final warningText = TextComponent(
+              text: '⚠️ MBTI 보스: ${characterData.name} 등장! ⚠️',
+              position: game.player.position.clone()..y -= 100,
+              anchor: Anchor.center,
+              priority: 30,
+              textRenderer: TextPaint(
+                style: const TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  shadows: [Shadow(color: Colors.black, blurRadius: 10)],
+                ),
+              ),
+            );
+            game.addTimedWorldComponent(warningText, lifetime: 3.0);
+          }
         }
       }
     }
@@ -362,12 +363,8 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
   void _onWaveCleared() {
     if (!_waveActive) return; // 중복 방지
     _waveActive = false;
-    game.playThrottledSfx(
-      'sfx_wave_clear.ogg',
-      volume: 0.8,
-      minInterval: 0.3,
-    );
-    
+    game.playThrottledSfx('sfx_wave_clear.ogg', volume: 0.8, minInterval: 0.3);
+
     final clearedWaveNumber = _currentWaveIndex + 1;
     game.debugLogState('wave_cleared');
     debugPrint(
@@ -375,8 +372,8 @@ class EnemySpawner extends Component with HasGameReference<MbtiGame> {
       'isMbtiBossWave=${clearedWaveNumber % 5 == 0 && clearedWaveNumber != 30} '
       'isMidBossWave=${clearedWaveNumber % 3 == 0}',
     );
-    
-    game.autoSave(); // 웨이브가 끝날 때 자동 저장
+
+    unawaited(game.autoSave()); // 웨이브가 끝날 때 자동 저장
 
     // 보스 웨이브 클리어 시 (3의 배수 또는 5의 배수) → 강화 선택 화면
     if (clearedWaveNumber % 3 == 0 || clearedWaveNumber % 5 == 0) {

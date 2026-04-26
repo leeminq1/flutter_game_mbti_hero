@@ -66,7 +66,6 @@ class SaveManager {
     int atkLevel = 0,
     int spdLevel = 0,
   }) async {
-    await _prefs.setBool(_keyHasSave, true);
     await _prefs.setString(_keyCharacter, character.name);
     await _prefs.setString(_keyCompanion, companion.name);
     await _prefs.setInt(_keyWave, wave);
@@ -97,6 +96,7 @@ class SaveManager {
     await _prefs.setInt(_keySaveHpLevel, hpLevel);
     await _prefs.setInt(_keySaveAtkLevel, atkLevel);
     await _prefs.setInt(_keySaveSpdLevel, spdLevel);
+    await _prefs.setBool(_keyHasSave, true);
   }
 
   /// 저장된 게임 데이터 불러오기

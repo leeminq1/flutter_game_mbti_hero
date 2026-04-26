@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
@@ -109,7 +110,8 @@ class Player extends SpriteAnimationComponent
     // 능력치 초기화
     // 능력치 초기화 (복원 데이터가 있으면 우선 사용)
     _baseMaxHp = characterData.maxHp + hpBonus;
-    _baseAttackPower = (characterData.attack + atkBonus) * startingAttackMultiplier;
+    _baseAttackPower =
+        (characterData.attack + atkBonus) * startingAttackMultiplier;
     _baseSpeed = (characterData.speed + spdBonus) * startingSpeedMultiplier;
 
     maxHp = restoredMaxHp ?? _baseMaxHp;
@@ -121,8 +123,7 @@ class Player extends SpriteAnimationComponent
     attackPower = restoredOrBuffedAttack.clamp(0, maxAttackPowerCap).toDouble();
     _attackInterval = restoredAttackInterval ?? characterData.baseAttackSpeed;
     if (restoredMultiShot != null) {
-      multiShotCount =
-          restoredMultiShot!.clamp(4, maxMultiShotLimit).toInt();
+      multiShotCount = restoredMultiShot!.clamp(4, maxMultiShotLimit).toInt();
     }
     _damageFlashColors = List<Color>.generate(
       _damageFlashBuckets + 1,
@@ -194,12 +195,14 @@ class Player extends SpriteAnimationComponent
     if (_damageInvincibleTimer > 0) {
       _damageInvincibleTimer -= dt;
       // 깜빡임 효과
-      final alpha =
-          (sin(_damageInvincibleTimer * 20) * 0.5 + 0.5).clamp(0.0, 1.0);
-      final bucket = (alpha * _damageFlashBuckets).round().clamp(
-        0,
-        _damageFlashBuckets,
-      ).toInt();
+      final alpha = (sin(_damageInvincibleTimer * 20) * 0.5 + 0.5).clamp(
+        0.0,
+        1.0,
+      );
+      final bucket = (alpha * _damageFlashBuckets)
+          .round()
+          .clamp(0, _damageFlashBuckets)
+          .toInt();
       if (bucket != _lastDamageFlashBucket) {
         paint.color = _damageFlashColors[bucket];
         _lastDamageFlashBucket = bucket;
@@ -257,7 +260,7 @@ class Player extends SpriteAnimationComponent
     }
     game.performUltimate(this);
     if (usedTicket) {
-      game.autoSave();
+      unawaited(game.autoSave());
     }
   }
 
@@ -266,10 +269,7 @@ class Player extends SpriteAnimationComponent
     if (isInvincible || _damageInvincibleTimer > 0) return;
 
     currentHp = (currentHp - damage).clamp(0, maxHp);
-    game.playThrottledSfx(
-      'sfx_player_hit.ogg',
-      minInterval: 0.08,
-    );
+    game.playThrottledSfx('sfx_player_hit.ogg', minInterval: 0.08);
     game.gameState.takeDamage(damage);
     _damageInvincibleTimer = _damageInvincibleDuration;
 
@@ -282,11 +282,7 @@ class Player extends SpriteAnimationComponent
   void heal(double amount, {bool playEffectSound = true}) {
     currentHp = (currentHp + amount).clamp(0, maxHp);
     if (playEffectSound) {
-      SfxManager.playUi(
-        'sfx_heal.ogg',
-        volume: 0.15,
-        minInterval: 0.22,
-      );
+      SfxManager.playUi('sfx_heal.ogg', volume: 0.15, minInterval: 0.22);
     }
     game.gameState.heal(amount);
   }
@@ -305,8 +301,7 @@ class Player extends SpriteAnimationComponent
 
   void applyPermanentAttackUpgrade(double amount) {
     _baseAttackPower += amount;
-    attackPower =
-        (attackPower + amount).clamp(0, maxAttackPowerCap).toDouble();
+    attackPower = (attackPower + amount).clamp(0, maxAttackPowerCap).toDouble();
   }
 
   void applyPermanentSpeedUpgrade(double amount) {
@@ -315,8 +310,7 @@ class Player extends SpriteAnimationComponent
   }
 
   void applyAttackBoost(double amount) {
-    attackPower =
-        (attackPower + amount).clamp(0, maxAttackPowerCap).toDouble();
+    attackPower = (attackPower + amount).clamp(0, maxAttackPowerCap).toDouble();
   }
 
   void applySpeedBoost(double amount) {

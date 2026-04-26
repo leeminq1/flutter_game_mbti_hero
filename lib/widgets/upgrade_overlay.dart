@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../game/components/player.dart';
@@ -123,7 +125,7 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
     if (!_canBuyHeal) return;
     widget.game.gameState.spendCoffeeBeans(_healCost);
     widget.game.player.heal(widget.game.player.maxHp * 0.45);
-    widget.game.autoSave();
+    unawaited(widget.game.autoSave());
     setState(() {});
   }
 
@@ -131,7 +133,7 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
     if (!_canBuyUltTicket) return;
     widget.game.gameState.spendCoffeeBeans(_ultPassCost);
     widget.game.gameState.addUltTicket();
-    widget.game.autoSave();
+    unawaited(widget.game.autoSave());
     setState(() {});
   }
 
@@ -139,7 +141,7 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
     if (!_canBuyAssistTicket) return;
     widget.game.gameState.spendCoffeeBeans(_assistPassCost);
     widget.game.gameState.addAssistTicket();
-    widget.game.autoSave();
+    unawaited(widget.game.autoSave());
     setState(() {});
   }
 
@@ -177,7 +179,7 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
       );
     }
 
-    widget.game.autoSave();
+    unawaited(widget.game.autoSave());
 
     widget.game.overlays.remove('Upgrade');
     widget.game.resumeGameplayIfAllowed(reason: 'upgrade_overlay');
@@ -302,7 +304,8 @@ class _UpgradeOverlayState extends State<UpgradeOverlay> {
                 _buildUtilityButton(
                   icon: Icons.favorite,
                   label: '응급 회복',
-                  description: widget.game.player.currentHp >=
+                  description:
+                      widget.game.player.currentHp >=
                           widget.game.player.maxHp - 0.5
                       ? '체력이 이미 MAX입니다'
                       : '현재 체력 45% 회복',

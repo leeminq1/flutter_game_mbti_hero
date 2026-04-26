@@ -1119,9 +1119,9 @@ class PauseOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: () {
+                onTap: () async {
                   game.overlays.remove('Pause');
-                  game.returnToLobby();
+                  await game.returnToLobby();
                 },
                 child: Container(
                   width: 180,

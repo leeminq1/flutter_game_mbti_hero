@@ -209,10 +209,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  Future<void> setBgmTrack(
-    BgmTrack track, {
-    bool forceRestart = false,
-  }) async {
+  Future<void> setBgmTrack(BgmTrack track, {bool forceRestart = false}) async {
     await BgmManager.setTrack(track, forceRestart: forceRestart);
   }
 
@@ -369,14 +366,17 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     String reason = 'unknown',
     bool consumeCountdownAuthorization = false,
   }) {
-    if (!_appLifecycleActive || _pausedByAppLifecycle || _awaitingResumeConfirmation) {
+    if (!_appLifecycleActive ||
+        _pausedByAppLifecycle ||
+        _awaitingResumeConfirmation) {
       debugLog(
         '[APP] blocked resume from $reason appActive=$_appLifecycleActive lifecyclePaused=$_pausedByAppLifecycle awaitingConfirm=$_awaitingResumeConfirmation',
       );
       return;
     }
 
-    if (consumeCountdownAuthorization && !_consumeCountdownResumeAuthorization()) {
+    if (consumeCountdownAuthorization &&
+        !_consumeCountdownResumeAuthorization()) {
       debugLog(
         '[APP] blocked resume from $reason because countdown authorization was missing',
       );
@@ -410,7 +410,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     overlays.remove('ResumePrompt');
     overlays.remove('Countdown');
     if (returnToLobby) {
-      this.returnToLobby();
+      unawaited(this.returnToLobby());
     }
   }
 
@@ -674,7 +674,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   bool performAutoAttack(Player attackingPlayer) {
-    final enemies = activeEnemies;  // [성능] O(1) 캐시 접근
+    final enemies = activeEnemies; // [성능] O(1) 캐시 접근
 
     switch (attackingPlayer.characterData.attackType) {
       case AttackType.wave:
@@ -846,7 +846,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
   void _dealDamageInRadius(Vector2 center, double radius, double damage) {
     final activeEnemies = List<BaseEnemy>.from(this.activeEnemies);
-    for (final enemy in activeEnemies) {  // [성능] 캐시 사용
+    for (final enemy in activeEnemies) {
+      // [성능] 캐시 사용
       if (center.distanceTo(enemy.position) <= radius + enemy.radius) {
         enemy.takeDamage(damage);
       }
@@ -855,7 +856,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
 
   void showSkillText(String text, Color color, Vector2 pos) {
     // [성능] 동시 스킬 텍스트 최대 5개로 제한
-    if (_activeSkillTextCount >= _maxSkillTextCount || !canSpawnTransientEffect()) {
+    if (_activeSkillTextCount >= _maxSkillTextCount ||
+        !canSpawnTransientEffect()) {
       return;
     }
     _activeSkillTextCount++;
@@ -1552,8 +1554,8 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
   }
 
   /// 웨이브 클리어 시 자동 저장
-  void autoSave() {
-    saveManager?.saveGame(
+  Future<void> autoSave() async {
+    await saveManager?.saveGame(
       character: gameState.selectedCharacter,
       companion: gameState.selectedCompanion,
       wave: gameState.currentWave,
@@ -1712,7 +1714,6 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
       '[REVIVE] gameState maxHp=${gameState.maxHp}, currentHp=${gameState.currentHp}',
     );
 
-
     // ── 적 스포너 재시작 ──
     enemySpawner = EnemySpawner();
     add(enemySpawner);
@@ -1728,14 +1729,14 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     restartGame();
   }
 
-  void returnToLobby() {
+  Future<void> returnToLobby() async {
     _awaitingResumeConfirmation = false;
     _countdownResumeAuthorized = false;
     _resumePromptToken++;
     BgmManager.revokeGameplayRestore();
     overlays.remove('ResumePrompt');
     overlays.remove('Countdown');
-    autoSave(); // 로비로 돌아가기 전에 현재 상태 저장
+    await autoSave(); // 로비로 돌아가기 전에 현재 상태 저장
     pauseEngine();
     onReturnToLobby?.call();
   }
