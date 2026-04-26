@@ -66,6 +66,8 @@ void main() async {
 }
 
 class MbtiHeroApp extends StatelessWidget {
+  static const double _webMaxGameWidth = 675;
+
   final UnlockManager unlockManager;
   final AdManager adManager;
   final SaveManager saveManager;
@@ -87,6 +89,33 @@ class MbtiHeroApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0A1A),
       ),
+      builder: (context, child) {
+        final appChild = child ?? const SizedBox.shrink();
+
+        if (kIsWeb) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : _webMaxGameWidth;
+              final width = maxWidth.clamp(0.0, _webMaxGameWidth).toDouble();
+
+              return ColoredBox(
+                color: const Color(0xFF1A1A1A),
+                child: Center(
+                  child: SizedBox(
+                    width: width,
+                    height: constraints.maxHeight,
+                    child: ClipRect(child: appChild),
+                  ),
+                ),
+              );
+            },
+          );
+        }
+
+        return appChild;
+      },
       home: SplashScreen(
         unlockManager: unlockManager,
         adManager: adManager,
@@ -340,44 +369,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // 게임 화면
     return Scaffold(
-      body: Stack(
-        children: [
-          // Flame 게임
-          GameWidget(
-            game: _game!,
-            overlayBuilderMap: {
-              'HUD': (context, game) => HudOverlay(
-                gameState: (game as MbtiGame).gameState,
-                game: game,
+      body: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: GameWidget(
+                game: _game!,
+                overlayBuilderMap: {
+                  'HUD': (context, game) => HudOverlay(
+                    gameState: (game as MbtiGame).gameState,
+                    game: game,
+                  ),
+                  'Actions': (context, game) =>
+                      ActionOverlay(game: game as MbtiGame),
+                  'GameOver': (context, game) => ResultOverlay(
+                    game: game as MbtiGame,
+                    leaderboardRepository: widget.leaderboardRepository,
+                    isVictory: false,
+                    onRetry: _retryGame,
+                    onLobby: _returnToLobby,
+                  ),
+                  'Victory': (context, game) => ResultOverlay(
+                    game: game as MbtiGame,
+                    leaderboardRepository: widget.leaderboardRepository,
+                    isVictory: true,
+                    onRetry: _retryGame,
+                    onLobby: _returnToLobby,
+                  ),
+                  'Pause': (context, game) => PauseOverlay(
+                    game: game as MbtiGame,
+                    onLobby: _returnToLobby,
+                  ),
+                  'ResumePrompt': (context, game) =>
+                      ResumeOverlay(game: game as MbtiGame),
+                  'Countdown': (context, game) =>
+                      CountdownOverlay(game: game as MbtiGame),
+                  'Upgrade': (context, game) =>
+                      UpgradeOverlay(game: game as MbtiGame),
+                },
+                initialActiveOverlays: const ['HUD', 'Actions'],
               ),
-              'Actions': (context, game) =>
-                  ActionOverlay(game: game as MbtiGame),
-              'GameOver': (context, game) => ResultOverlay(
-                game: game as MbtiGame,
-                leaderboardRepository: widget.leaderboardRepository,
-                isVictory: false,
-                onRetry: _retryGame,
-                onLobby: _returnToLobby,
-              ),
-              'Victory': (context, game) => ResultOverlay(
-                game: game as MbtiGame,
-                leaderboardRepository: widget.leaderboardRepository,
-                isVictory: true,
-                onRetry: _retryGame,
-                onLobby: _returnToLobby,
-              ),
-              'Pause': (context, game) =>
-                  PauseOverlay(game: game as MbtiGame, onLobby: _returnToLobby),
-              'ResumePrompt': (context, game) =>
-                  ResumeOverlay(game: game as MbtiGame),
-              'Countdown': (context, game) =>
-                  CountdownOverlay(game: game as MbtiGame),
-              'Upgrade': (context, game) =>
-                  UpgradeOverlay(game: game as MbtiGame),
-            },
-            initialActiveOverlays: const ['HUD', 'Actions'],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
