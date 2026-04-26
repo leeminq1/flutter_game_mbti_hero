@@ -1,4 +1,5 @@
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,15 +24,18 @@ import 'widgets/upgrade_overlay.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 세로 모드 잠금 해제, 가로 모드 지원
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-    DeviceOrientation.portraitUp,
-  ]);
+  // 웹이 아닐 경우에만 화면 방향 고정 및 몰입형 모드 적용
+  if (!kIsWeb) {
+    // 세로 모드 잠금 해제, 가로 모드 지원
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+      DeviceOrientation.portraitUp,
+    ]);
 
-  // 몰입형 모드 (하단 네비게이션 바 숨기기)
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // 몰입형 모드 (하단 네비게이션 바 숨기기)
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
 
   // 서비스 초기화
   final unlockManager = UnlockManager();
