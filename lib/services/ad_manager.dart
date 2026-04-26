@@ -37,12 +37,21 @@ class AdManager {
 
   Future<void> init() async {
     if (_isInitialized) return;
+    
+    // 웹 플랫폼에서는 모바일 광고 초기화를 건너뜁니다.
+    if (kIsWeb) {
+      _isInitialized = true;
+      return;
+    }
+
     await MobileAds.instance.initialize();
     _isInitialized = true;
     _createInterstitialAd(); // 캐싱을 위해 미리 로드
   }
 
   String get _interstitialAdUnitId {
+    if (kIsWeb) return ''; // 웹에서는 사용하지 않음
+
     if (kDebugMode) {
       if (Platform.isAndroid) return _testInterstitialAdUnitIdAndroid;
       if (Platform.isIOS) return _testInterstitialAdUnitIdIOS;
@@ -81,6 +90,12 @@ class AdManager {
   // 외부 함수명은 호환성을 위해 showReviveRewardedAd 로 유지하지만, 내용은 전면광고 띄우기임
   Future<bool> showReviveRewardedAd() async {
     await _ensureInitialized();
+
+    // 웹 환경에서는 광고 없이 즉시 무료 부활 성공(true) 처리
+    if (kIsWeb) {
+      debugPrint('[$AdManager] 웹 환경: 광고 없이 부활합니다.');
+      return true;
+    }
 
     if (_interstitialAdInProgress) return false;
 

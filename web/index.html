@@ -31,8 +31,52 @@
 
   <title>flutter_game</title>
   <link rel="manifest" href="manifest.json">
+  
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #1a1a1a; /* 어두운 배경으로 몰입감 증가 */
+    }
+    
+    /* 화면 위/아래에 고정되는 광고 배너 영역 */
+    .ad-banner {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      min-height: 50px;
+      background-color: #000;
+      color: #888;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-family: sans-serif;
+      font-size: 14px;
+    }
+    .ad-top { top: 0; }
+    .ad-bottom { bottom: 0; }
+
+    /* 추후 애드센스 스크립트를 넣기 위한 위치 설명 */
+  </style>
+
+  <!-- [추후 추가] 구글 애드센스 로드 스크립트를 이 곳에 넣습니다. -->
+  <!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXX" crossorigin="anonymous"></script> -->
 </head>
 <body>
+  <!-- 상단 광고 배너 Placeholder -->
+  <!-- 구글 애드센스 <ins> 태그를 여기에 배치하세요 -->
+  <div class="ad-banner ad-top" id="ad-top">
+    상단 광고 (AdSense) 노출 영역
+  </div>
+
   <script src="flutter_bootstrap.js" async></script>
+
+  <!-- 하단 광고 배너 Placeholder -->
+  <!-- 구글 애드센스 <ins> 태그를 여기에 배치하세요 -->
+  <div class="ad-banner ad-bottom" id="ad-bottom">
+    하단 광고 (AdSense) 노출 영역
+  </div>
 </body>
 </html>
