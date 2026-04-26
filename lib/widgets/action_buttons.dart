@@ -1,4 +1,5 @@
 import 'package:flame/components.dart' show Vector2;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../game/mbti_game.dart';
 import 'minimap_overlay.dart';
@@ -131,12 +132,33 @@ class _ActionOverlayState extends State<ActionOverlay>
       builder: (context, _) {
         return Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 동료 호출 버튼
-            _buildAssistButton(),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildAssistButton(),
+                if (kIsWeb)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8.0),
+                    child: Text('단축키 숫자 [1]번 키', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ),
+              ],
+            ),
             const SizedBox(height: 12),
             // 필살기 버튼
-            _buildUltButton(),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildUltButton(),
+                if (kIsWeb)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8.0),
+                    child: Text('단축키 숫자 [2]번 키', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ),
+              ],
+            ),
           ],
         );
       },

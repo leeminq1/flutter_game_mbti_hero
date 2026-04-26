@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flame/components.dart';
+import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'components/enemies/base_enemy.dart';
 import 'components/player.dart';
 import 'components/projectiles/base_projectile.dart';
@@ -17,7 +19,7 @@ import '../services/save_manager.dart';
 import '../services/sfx_manager.dart';
 
 /// MBTI 히어로: 직장인 생존기 - 메인 게임 클래스
-class MbtiGame extends FlameGame with HasCollisionDetection {
+class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
   // 게임 상태 (Flutter UI 연동)
   final GameState gameState = GameState();
 
@@ -158,6 +160,28 @@ class MbtiGame extends FlameGame with HasCollisionDetection {
     _countdownResumeAuthorized = true;
     pauseEngine();
     overlays.add('Countdown');
+  }
+
+  @override
+  KeyEventResult onKeyEvent(
+    KeyEvent event,
+    Set<LogicalKeyboardKey> keysPressed,
+  ) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.digit1 || event.logicalKey == LogicalKeyboardKey.numpad1) {
+        if (gameState.isAssistReady) {
+          performAssist();
+        }
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.digit2 || event.logicalKey == LogicalKeyboardKey.numpad2) {
+        if (gameState.isUltReady) {
+          player.useUltimate();
+        }
+        return KeyEventResult.handled;
+      }
+    }
+    return super.onKeyEvent(event, keysPressed);
   }
 
   @override
