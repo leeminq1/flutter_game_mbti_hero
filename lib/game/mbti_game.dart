@@ -20,7 +20,7 @@ import '../services/sfx_manager.dart';
 
 /// MBTI 히어로: 직장인 생존기 - 메인 게임 클래스
 class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
-  static const double _webMobileCameraZoom = 1.1;
+  static const double _webMobileCameraZoom = 0.85;
 
   // 게임 상태 (Flutter UI 연동)
   final GameState gameState = GameState();

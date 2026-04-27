@@ -69,59 +69,80 @@ class _ActionOverlayState extends State<ActionOverlay>
 
   /// 조이스틱 위젯
   Widget _buildJoystick() {
-    return GestureDetector(
-      onPanStart: (details) {
-        setState(() {
-          _isDragging = true;
-          _joystickCenter = const Offset(_joystickRadius, _joystickRadius);
-          _joystickKnob = _joystickCenter;
-        });
-      },
-      onPanUpdate: (details) {
-        final offset = details.localPosition;
-        final delta = offset - _joystickCenter;
-        final distance = delta.distance;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onPanStart: (details) {
+            setState(() {
+              _isDragging = true;
+              _joystickCenter = const Offset(_joystickRadius, _joystickRadius);
+              _joystickKnob = _joystickCenter;
+            });
+          },
+          onPanUpdate: (details) {
+            final offset = details.localPosition;
+            final delta = offset - _joystickCenter;
+            final distance = delta.distance;
 
-        Offset clampedKnob;
-        if (distance > _joystickRadius) {
-          clampedKnob =
-              _joystickCenter +
-              Offset.fromDirection(delta.direction, _joystickRadius);
-        } else {
-          clampedKnob = offset;
-        }
+            Offset clampedKnob;
+            if (distance > _joystickRadius) {
+              clampedKnob =
+                  _joystickCenter +
+                  Offset.fromDirection(delta.direction, _joystickRadius);
+            } else {
+              clampedKnob = offset;
+            }
 
-        setState(() {
-          _joystickKnob = clampedKnob;
-        });
+            setState(() {
+              _joystickKnob = clampedKnob;
+            });
 
-        // 게임에 방향 전달
-        final normalizedDelta = clampedKnob - _joystickCenter;
-        const maxDist = _joystickRadius;
-        widget.game.updateJoystick(
-          Vector2(normalizedDelta.dx / maxDist, normalizedDelta.dy / maxDist),
-        );
-      },
-      onPanEnd: (_) {
-        setState(() {
-          _isDragging = false;
-          _joystickKnob = _joystickCenter;
-        });
-        widget.game.updateJoystick(Vector2.zero());
-      },
-      child: SizedBox(
-        width: _joystickRadius * 2,
-        height: _joystickRadius * 2,
-        child: CustomPaint(
-          painter: _JoystickPainter(
-            center: _joystickCenter,
-            knob: _isDragging ? _joystickKnob : _joystickCenter,
-            radius: _joystickRadius,
-            knobRadius: _knobRadius,
-            isDragging: _isDragging,
+            // 게임에 방향 전달
+            final normalizedDelta = clampedKnob - _joystickCenter;
+            const maxDist = _joystickRadius;
+            widget.game.updateJoystick(
+              Vector2(
+                normalizedDelta.dx / maxDist,
+                normalizedDelta.dy / maxDist,
+              ),
+            );
+          },
+          onPanEnd: (_) {
+            setState(() {
+              _isDragging = false;
+              _joystickKnob = _joystickCenter;
+            });
+            widget.game.updateJoystick(Vector2.zero());
+          },
+          child: SizedBox(
+            width: _joystickRadius * 2,
+            height: _joystickRadius * 2,
+            child: CustomPaint(
+              painter: _JoystickPainter(
+                center: _joystickCenter,
+                knob: _isDragging ? _joystickKnob : _joystickCenter,
+                radius: _joystickRadius,
+                knobRadius: _knobRadius,
+                isDragging: _isDragging,
+              ),
+            ),
           ),
         ),
-      ),
+        if (kIsWeb) ...[
+          const SizedBox(height: 6),
+          const Text(
+            '방향키 / WASD 이동',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+            ),
+          ),
+        ],
+      ],
     );
   }
 
