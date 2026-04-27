@@ -20,6 +20,9 @@ import '../services/sfx_manager.dart';
 
 /// MBTI 히어로: 직장인 생존기 - 메인 게임 클래스
 class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
+  static const double _webMobileBreakpoint = 700;
+  static const double _webMobileCameraZoom = 1.35;
+
   // 게임 상태 (Flutter UI 연동)
   final GameState gameState = GameState();
 
@@ -81,6 +84,19 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
   bool get isAwaitingResumeConfirmation => _awaitingResumeConfirmation;
 
   @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    _applyResponsiveCameraZoom(size);
+  }
+
+  void _applyResponsiveCameraZoom(Vector2 viewportSize) {
+    camera.viewfinder.zoom =
+        kIsWeb && viewportSize.x <= _webMobileBreakpoint
+            ? _webMobileCameraZoom
+            : 1.0;
+  }
+
+  @override
   Future<void> onLoad() async {
     await super.onLoad();
 
@@ -119,6 +135,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
 
     // 카메라가 플레이어 추적 (시작 시 스냅핑하여 줌인/팬 효과 방지)
     camera.follow(player, snap: true);
+    _applyResponsiveCameraZoom(size);
 
     // 게임 상태 초기화
     gameState.reset();
@@ -1649,6 +1666,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
     player.position = mapSize / 2;
     world.add(player);
     camera.follow(player, snap: true);
+    _applyResponsiveCameraZoom(size);
 
     gameState.initHp(characterData.maxHp);
     gameState.initUltCooldown(characterData.ultCooldown);
@@ -1721,6 +1739,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
     player.position = mapSize / 2;
     world.add(player);
     camera.follow(player, snap: true);
+    _applyResponsiveCameraZoom(size);
 
     debugLog('[REVIVE] === PLAYER CREATED with restored params ===');
 
