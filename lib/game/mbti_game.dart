@@ -20,8 +20,7 @@ import '../services/sfx_manager.dart';
 
 /// MBTI 히어로: 직장인 생존기 - 메인 게임 클래스
 class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
-  static const double _webMobileBreakpoint = 700;
-  static const double _webMobileCameraZoom = 1.35;
+  static const double _webMobileCameraZoom = 1.1;
 
   // 게임 상태 (Flutter UI 연동)
   final GameState gameState = GameState();
@@ -35,9 +34,13 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
   // 적 스포너
   late EnemySpawner enemySpawner;
 
-  // 조이스틱 방향 (Flutter 오버레이에서 입력)
-  Vector2 _joystickDirection = Vector2.zero();
-  Vector2 get joystickDirection => _joystickDirection;
+  // 이동 입력 방향 (터치 조이스틱 + 데스크톱 키보드)
+  Vector2 _touchJoystickDirection = Vector2.zero();
+  Vector2 _keyboardDirection = Vector2.zero();
+  Vector2 get joystickDirection =>
+      _keyboardDirection.length2 == 0
+          ? _touchJoystickDirection
+          : _keyboardDirection;
 
   // 로비 복귀 콜백
   VoidCallback? onReturnToLobby;
@@ -86,14 +89,16 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    _applyResponsiveCameraZoom(size);
+    _applyResponsiveCameraZoom();
   }
 
-  void _applyResponsiveCameraZoom(Vector2 viewportSize) {
-    camera.viewfinder.zoom =
-        kIsWeb && viewportSize.x <= _webMobileBreakpoint
-            ? _webMobileCameraZoom
-            : 1.0;
+  bool get _isMobileWeb =>
+      kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  void _applyResponsiveCameraZoom() {
+    camera.viewfinder.zoom = _isMobileWeb ? _webMobileCameraZoom : 1.0;
   }
 
   @override
@@ -135,7 +140,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
 
     // 카메라가 플레이어 추적 (시작 시 스냅핑하여 줌인/팬 효과 방지)
     camera.follow(player, snap: true);
-    _applyResponsiveCameraZoom(size);
+    _applyResponsiveCameraZoom();
 
     // 게임 상태 초기화
     gameState.reset();
@@ -184,14 +189,21 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
     KeyEvent event,
     Set<LogicalKeyboardKey> keysPressed,
   ) {
+    if (_isMovementKey(event.logicalKey)) {
+      _keyboardDirection = _keyboardDirectionFromKeys(keysPressed);
+      return KeyEventResult.handled;
+    }
+
     if (event is KeyDownEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.digit1 || event.logicalKey == LogicalKeyboardKey.numpad1) {
+      if (event.logicalKey == LogicalKeyboardKey.digit1 ||
+          event.logicalKey == LogicalKeyboardKey.numpad1) {
         if (gameState.isAssistReady) {
           performAssist();
         }
         return KeyEventResult.handled;
       }
-      if (event.logicalKey == LogicalKeyboardKey.digit2 || event.logicalKey == LogicalKeyboardKey.numpad2) {
+      if (event.logicalKey == LogicalKeyboardKey.digit2 ||
+          event.logicalKey == LogicalKeyboardKey.numpad2) {
         if (gameState.isUltReady) {
           player.useUltimate();
         }
@@ -199,6 +211,42 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
       }
     }
     return super.onKeyEvent(event, keysPressed);
+  }
+
+  bool _isMovementKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.keyA ||
+        key == LogicalKeyboardKey.keyD ||
+        key == LogicalKeyboardKey.keyW ||
+        key == LogicalKeyboardKey.keyS;
+  }
+
+  Vector2 _keyboardDirectionFromKeys(Set<LogicalKeyboardKey> keysPressed) {
+    var x = 0.0;
+    var y = 0.0;
+
+    if (keysPressed.contains(LogicalKeyboardKey.arrowLeft) ||
+        keysPressed.contains(LogicalKeyboardKey.keyA)) {
+      x -= 1;
+    }
+    if (keysPressed.contains(LogicalKeyboardKey.arrowRight) ||
+        keysPressed.contains(LogicalKeyboardKey.keyD)) {
+      x += 1;
+    }
+    if (keysPressed.contains(LogicalKeyboardKey.arrowUp) ||
+        keysPressed.contains(LogicalKeyboardKey.keyW)) {
+      y -= 1;
+    }
+    if (keysPressed.contains(LogicalKeyboardKey.arrowDown) ||
+        keysPressed.contains(LogicalKeyboardKey.keyS)) {
+      y += 1;
+    }
+
+    final direction = Vector2(x, y);
+    return direction.length2 == 0 ? direction : direction.normalized();
   }
 
   @override
@@ -339,7 +387,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
         _appLifecycleActive = false;
-        _joystickDirection = Vector2.zero();
+        _resetMovementInput();
         _awaitingResumeConfirmation = false;
         _countdownResumeAuthorized = false;
         _resumePromptToken++;
@@ -386,7 +434,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
         break;
       case AppLifecycleState.detached:
         _appLifecycleActive = false;
-        _joystickDirection = Vector2.zero();
+        _resetMovementInput();
         _awaitingResumeConfirmation = false;
         _countdownResumeAuthorized = false;
         _resumePromptToken++;
@@ -666,7 +714,12 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
 
   /// 조이스틱 방향 업데이트 (Flutter 오버레이에서 호출)
   void updateJoystick(Vector2 direction) {
-    _joystickDirection = direction;
+    _touchJoystickDirection = direction;
+  }
+
+  void _resetMovementInput() {
+    _touchJoystickDirection = Vector2.zero();
+    _keyboardDirection = Vector2.zero();
   }
 
   // ══════════════════════════════════════════
@@ -1110,7 +1163,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
 
   /// ISTP 필살기: "기계 장치 폭발" - 부품 파편 ⚙️
   void _ultStraight(Player p) {
-    var burstDir = _joystickDirection.clone();
+    var burstDir = joystickDirection.clone();
     if (burstDir == Vector2.zero()) burstDir = Vector2(1, 0);
     burstDir.normalize();
     spawnProjectile(
@@ -1666,7 +1719,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
     player.position = mapSize / 2;
     world.add(player);
     camera.follow(player, snap: true);
-    _applyResponsiveCameraZoom(size);
+    _applyResponsiveCameraZoom();
 
     gameState.initHp(characterData.maxHp);
     gameState.initUltCooldown(characterData.ultCooldown);
@@ -1739,7 +1792,7 @@ class MbtiGame extends FlameGame with HasCollisionDetection, KeyboardEvents {
     player.position = mapSize / 2;
     world.add(player);
     camera.follow(player, snap: true);
-    _applyResponsiveCameraZoom(size);
+    _applyResponsiveCameraZoom();
 
     debugLog('[REVIVE] === PLAYER CREATED with restored params ===');
 

@@ -81,6 +81,11 @@ class MbtiHeroApp extends StatelessWidget {
     required this.leaderboardRepository,
   });
 
+  bool get _isMobileWeb =>
+      kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -98,7 +103,9 @@ class MbtiHeroApp extends StatelessWidget {
               final maxWidth = constraints.maxWidth.isFinite
                   ? constraints.maxWidth
                   : _webMaxGameWidth;
-              final width = maxWidth.clamp(0.0, _webMaxGameWidth).toDouble();
+              final width = _isMobileWeb
+                  ? maxWidth
+                  : maxWidth.clamp(0.0, _webMaxGameWidth).toDouble();
 
               return ColoredBox(
                 color: const Color(0xFF1A1A1A),
@@ -376,6 +383,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Positioned.fill(
               child: GameWidget(
                 game: _game!,
+                autofocus: true,
                 overlayBuilderMap: {
                   'HUD': (context, game) => HudOverlay(
                     gameState: (game as MbtiGame).gameState,
