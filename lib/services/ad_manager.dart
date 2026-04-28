@@ -29,7 +29,7 @@ class AdManager {
   bool get isInterstitialAdInProgress => _interstitialAdInProgress;
 
   /// 개발자님이 올바르게 발급해주신 '전면 광고' 단위 ID (실제 출시용)
-  static const String _realInterstitialAdUnitIdAndroid = 'ca-app-pub-9991463854626958/4308485713';
+  static const String _realInterstitialAdUnitIdAndroid = 'ca-app-pub-9991463854626958/1491607883';
   
   /// 구글이 제공하는 테스트용 '전면 광고' ID (디버그 모드에서 자동 사용)
   static const String _testInterstitialAdUnitIdAndroid = 'ca-app-pub-3940256099942544/1033173712';

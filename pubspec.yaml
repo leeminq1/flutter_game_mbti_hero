@@ -1,7 +1,7 @@
 name: flutter_game
 description: "MBTI 히어로: 직장인 생존기 - 2D Top-down Wave Survival Game"
 publish_to: 'none'
-version: 1.0.3+15
+version: 1.0.4+16
 
 environment:
   sdk: ^3.10.8
