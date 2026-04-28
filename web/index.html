@@ -1,31 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="MBTI 히어로 - 직장인 생존기 웹 게임">
+  <meta name="description" content="MBTI 히어로: 직장인 생존기는 직장 생활을 테마로 한 2D 생존 액션 웹 게임입니다. MBTI 캐릭터를 선택하고 동료 호출, 필살기, 성장 시스템으로 웨이브를 돌파하세요.">
   <meta name="theme-color" content="#0A0A1A">
+  <meta name="robots" content="index, follow">
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="MBTI 히어로">
   <meta property="og:title" content="MBTI 히어로: 직장인 생존기">
-  <meta property="og:description" content="직장에서 살아남는 2D 생존 액션 게임">
+  <meta property="og:description" content="직장에서 살아남는 2D 생존 액션 게임. MBTI 캐릭터와 함께 웨이브를 돌파하세요.">
   <meta property="og:url" content="https://mbti-hero.web.app/">
   <meta property="og:image" content="https://mbti-hero.web.app/og-image.png">
   <meta property="og:image:secure_url" content="https://mbti-hero.web.app/og-image.png">
@@ -39,51 +27,321 @@
   <meta name="twitter:description" content="직장에서 살아남는 2D 생존 액션 게임">
   <meta name="twitter:image" content="https://mbti-hero.web.app/og-image.png">
 
-  <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="MBTI 히어로">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
 
   <title>MBTI 히어로: 직장인 생존기</title>
-  <link rel="manifest" href="manifest.json">
-  
+
   <style>
     :root {
+      color-scheme: dark;
+      --ink: #f7fbff;
+      --muted: #b9c7d6;
+      --line: rgba(255, 255, 255, 0.16);
+      --bg: #071017;
+      --panel: #111a21;
+      --accent: #53d5ff;
+      --warm: #ffd166;
+      --coral: #ff6b6b;
       --game-max-width: 675px;
-      --ad-banner-height: 50px;
     }
 
-    body, html {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background-color: #1a1a1a;
-      overflow: hidden;
+    * {
+      box-sizing: border-box;
     }
 
+    html,
     body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    body.play-mode {
       position: fixed;
       inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a1a;
     }
 
-    /* Flutter web host: keep the game inside the same centered frame on every route. */
-    #app-shell {
+    a {
+      color: inherit;
+    }
+
+    .site-shell {
+      display: block;
+      min-height: 100vh;
+      background: #071017;
+    }
+
+    .play-mode .site-shell {
+      display: none;
+    }
+
+    .topbar {
       position: fixed;
       top: 0;
-      right: 0;
-      bottom: var(--ad-banner-height);
       left: 0;
+      right: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      height: 64px;
+      padding: 0 clamp(18px, 5vw, 72px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(7, 16, 23, 0.84);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 800;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .brand img {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+    }
+
+    .nav-links a:hover {
+      color: var(--ink);
+    }
+
+    .hero {
+      min-height: 86vh;
+      display: grid;
+      align-items: end;
+      padding: 104px clamp(20px, 6vw, 86px) 56px;
+      background:
+        linear-gradient(90deg, rgba(7, 16, 23, 0.95), rgba(7, 16, 23, 0.72) 46%, rgba(7, 16, 23, 0.42)),
+        linear-gradient(180deg, rgba(7, 16, 23, 0.2), #071017 98%),
+        url("/assets/assets/images/ui/splash_bg.png") center / cover no-repeat;
+    }
+
+    .hero-content {
+      max-width: 760px;
+    }
+
+    .eyebrow {
+      color: var(--warm);
+      font-size: 15px;
+      font-weight: 900;
+      margin: 0 0 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(44px, 8vw, 92px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .hero-copy {
+      max-width: 660px;
+      margin: 22px 0 0;
+      color: #dce8f4;
+      font-size: clamp(18px, 2.4vw, 24px);
+      line-height: 1.6;
+      font-weight: 650;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    .button.primary {
+      border-color: #37c9ff;
+      background: #37c9ff;
+      color: #041016;
+    }
+
+    .hero-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .hero-stats span {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 12px;
+      background: rgba(0, 0, 0, 0.26);
+    }
+
+    section {
+      padding: 72px clamp(20px, 6vw, 86px);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .section-inner {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+    }
+
+    .section-heading {
+      margin: 0 0 16px;
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1.14;
+    }
+
+    .section-copy {
+      max-width: 760px;
+      margin: 0 0 32px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.75;
+    }
+
+    .feature-grid,
+    .character-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .feature,
+    .character {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 22px;
+      min-height: 168px;
+    }
+
+    .feature strong,
+    .character strong {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 20px;
+    }
+
+    .feature p,
+    .character p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .character {
+      display: grid;
+      grid-template-columns: 82px 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .character img {
+      width: 82px;
+      height: 82px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #071017;
+    }
+
+    .guide {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .guide-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 14px;
+    }
+
+    .guide-list li {
+      border-left: 4px solid var(--accent);
+      padding: 4px 0 4px 16px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .guide-list strong {
+      color: var(--ink);
+    }
+
+    .policy {
+      background: #0d151b;
+    }
+
+    .policy-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    footer {
+      padding: 32px clamp(20px, 6vw, 86px);
+      color: #91a4b7;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: #070d12;
+    }
+
+    #app-shell {
+      display: none;
+    }
+
+    .play-mode #app-shell {
+      position: fixed;
+      inset: 0;
       display: flex;
       justify-content: center;
       align-items: stretch;
       width: 100%;
-      height: calc(100dvh - var(--ad-banner-height));
-      min-height: 0;
+      height: 100dvh;
       overflow: hidden;
       background-color: #1a1a1a;
     }
@@ -101,14 +359,6 @@
       box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
     }
 
-    @media (max-width: 700px) {
-      #flutter-host {
-        width: 100vw;
-        max-width: none;
-        box-shadow: none;
-      }
-    }
-
     #flutter-host flutter-view,
     #flutter-host flt-glass-pane {
       width: 100% !important;
@@ -116,39 +366,203 @@
       overflow: hidden !important;
     }
 
-    /* 하단 광고 배너 영역 */
-    .ad-banner {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 50px;
-      min-height: 50px;
-      background-color: #000;
-      color: #888;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      font-family: sans-serif;
-      font-size: 14px;
+    @media (max-width: 820px) {
+      .topbar {
+        height: auto;
+        min-height: 62px;
+        flex-wrap: wrap;
+        padding-top: 12px;
+        padding-bottom: 12px;
+      }
+
+      .nav-links {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .hero {
+        min-height: 84vh;
+        padding-top: 132px;
+      }
+
+      .feature-grid,
+      .character-grid,
+      .guide {
+        grid-template-columns: 1fr;
+      }
+
+      .character {
+        grid-template-columns: 72px 1fr;
+      }
+
+      .character img {
+        width: 72px;
+        height: 72px;
+      }
+    }
+
+    @media (max-width: 700px) {
+      #flutter-host {
+        width: 100vw;
+        max-width: none;
+        box-shadow: none;
+      }
     }
   </style>
 
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9991463854626958"
-     crossorigin="anonymous"></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9991463854626958" crossorigin="anonymous"></script>
 </head>
 <body>
-  <main id="app-shell">
+  <div class="site-shell" id="landing-page">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="MBTI 히어로 홈">
+        <img src="/og-image.png" alt="MBTI 히어로 아이콘">
+        <span>MBTI 히어로</span>
+      </a>
+      <nav class="nav-links" aria-label="주요 링크">
+        <a href="#about">게임 소개</a>
+        <a href="#characters">캐릭터</a>
+        <a href="#guide">플레이 방법</a>
+        <a href="/play">게임 시작</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-content">
+          <p class="eyebrow">2D TOP-DOWN WAVE SURVIVAL GAME</p>
+          <h1 id="hero-title">MBTI 히어로:<br>직장인 생존기</h1>
+          <p class="hero-copy">
+            성격 유형별 히어로가 되어 직장의 위기를 돌파하세요. 커피, 업무, 갑작스러운 방해 요소가 쏟아지는 사무실에서 동료를 호출하고 필살기를 충전하며 끝까지 살아남는 웹 게임입니다.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="/play">웹에서 게임 시작</a>
+            <a class="button" href="https://play.google.com/store/apps/details?id=com.minq.mbtihero" rel="noopener">Google Play에서 보기</a>
+          </div>
+          <div class="hero-stats" aria-label="게임 특징">
+            <span>16 MBTI 캐릭터</span>
+            <span>웨이브 생존 전투</span>
+            <span>랭킹 기록 저장</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="about">
+        <div class="section-inner">
+          <h2 class="section-heading">직장인의 하루를 액션 게임으로 바꾼 생존기</h2>
+          <p class="section-copy">
+            MBTI 히어로는 직장 생활의 스트레스와 돌발 상황을 가볍고 빠른 액션으로 풀어낸 게임입니다. 플레이어는 성격 유형에 따라 다른 능력치를 가진 캐릭터를 선택하고, 사무실 맵에서 몰려오는 적을 피하며 성장합니다.
+          </p>
+          <div class="feature-grid">
+            <article class="feature">
+              <strong>웨이브 기반 전투</strong>
+              <p>짧은 시간 안에 반복해서 도전할 수 있도록 적 웨이브, 보스 등장, 업그레이드 선택이 빠르게 이어집니다.</p>
+            </article>
+            <article class="feature">
+              <strong>동료 호출과 필살기</strong>
+              <p>위험한 순간에는 동료를 호출하고, 캐릭터별 필살기를 사용해 전투 흐름을 뒤집을 수 있습니다.</p>
+            </article>
+            <article class="feature">
+              <strong>기록과 랭킹</strong>
+              <p>엔딩 기록과 점수를 저장하고, 다른 플레이어의 기록과 비교하며 더 오래 살아남는 플레이를 목표로 합니다.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="characters">
+        <div class="section-inner">
+          <h2 class="section-heading">MBTI 유형마다 다른 전투 감각</h2>
+          <p class="section-copy">
+            캐릭터는 각자의 성향을 반영한 전투 스타일과 능력치를 가집니다. 빠르게 움직이는 유형, 안정적으로 버티는 유형, 강력한 한 방을 노리는 유형까지 취향에 맞는 히어로를 선택하세요.
+          </p>
+          <div class="character-grid">
+            <article class="character">
+              <img src="/assets/assets/images/characters/enfp.png" alt="ENFP 히어로 캐릭터">
+              <div>
+                <strong>ENFP 히어로</strong>
+                <p>활발한 움직임과 공격적인 전개로 전장을 넓게 흔드는 타입입니다.</p>
+              </div>
+            </article>
+            <article class="character">
+              <img src="/assets/assets/images/characters/istj.png" alt="ISTJ 히어로 캐릭터">
+              <div>
+                <strong>ISTJ 히어로</strong>
+                <p>안정적인 생존과 꾸준한 운영에 강한 타입입니다.</p>
+              </div>
+            </article>
+            <article class="character">
+              <img src="/assets/assets/images/characters/entj.png" alt="ENTJ 히어로 캐릭터">
+              <div>
+                <strong>ENTJ 히어로</strong>
+                <p>강한 추진력으로 보스전과 고위험 상황을 돌파하는 타입입니다.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="guide">
+        <div class="section-inner guide">
+          <div>
+            <h2 class="section-heading">플레이 방법</h2>
+            <p class="section-copy">
+              모바일에서는 화면 조이스틱과 액션 버튼을 사용하고, 데스크톱 웹에서는 키보드 입력을 함께 사용할 수 있습니다. 간단한 조작으로 바로 시작하고, 업그레이드 선택으로 매 판 다른 흐름을 만들 수 있습니다.
+            </p>
+          </div>
+          <ul class="guide-list">
+            <li><strong>이동:</strong> 화면 조이스틱 또는 방향키/WASD로 적을 피합니다.</li>
+            <li><strong>공격:</strong> 캐릭터는 자동으로 공격하며, 위치 선정이 생존의 핵심입니다.</li>
+            <li><strong>액션:</strong> 숫자 1번은 동료 호출, 숫자 2번은 필살기 사용입니다.</li>
+            <li><strong>목표:</strong> 웨이브와 보스를 넘기고 최고 기록을 남깁니다.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="policy" id="info">
+        <div class="section-inner">
+          <h2 class="section-heading">운영 정보</h2>
+          <p class="section-copy">
+            이 사이트는 MBTI 히어로 웹 게임과 Android 앱 정보를 제공하는 공식 페이지입니다. 광고와 개인정보 처리에 관한 정보는 아래 링크에서 확인할 수 있습니다.
+          </p>
+          <div class="policy-links">
+            <a class="button primary" href="/play">게임 시작</a>
+            <a class="button" href="https://leeminq1.github.io/flutter_game_mbti_hero/privacy-policy.html" rel="noopener">개인정보처리방침</a>
+            <a class="button" href="mailto:leeminq1@gmail.com">문의하기</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="section-inner">
+        MBTI 히어로: 직장인 생존기. 운영자: leeminq1. 본 웹사이트는 게임 소개, 플레이, 개인정보처리방침, 광고 관련 정보를 제공합니다.
+      </div>
+    </footer>
+  </div>
+
+  <main id="app-shell" aria-label="MBTI 히어로 게임 실행 영역">
     <div id="flutter-host"></div>
   </main>
 
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    (function () {
+      var path = window.location.pathname.replace(/\/+$/, "") || "/";
+      var isPlayPath = path === "/play";
 
-  <!-- 하단 광고 배너 Placeholder -->
-  <!-- 구글 애드센스 <ins> 태그를 여기에 배치하세요 -->
-  <div class="ad-banner ad-bottom" id="ad-bottom">
-    하단 광고 (AdSense) 노출 영역
-  </div>
+      if (!isPlayPath) {
+        return;
+      }
+
+      document.body.classList.add("play-mode");
+      document.title = "MBTI 히어로: 직장인 생존기 - 플레이";
+
+      var script = document.createElement("script");
+      script.src = "flutter_bootstrap.js";
+      script.async = true;
+      document.body.appendChild(script);
+    })();
+  </script>
 </body>
 </html>
